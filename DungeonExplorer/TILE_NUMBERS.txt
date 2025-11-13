@@ -1,0 +1,149 @@
+================================================================================
+KENNEY TINY DUNGEON - TILE NUMBER REFERENCE
+================================================================================
+Location: assets/kenney/kenney_tiny-dungeon/Tiles/tile_XXXX.png
+Total tiles: 0000 to 0131 (132 tiles)
+
+CURRENT MAPPINGS IN CODE:
+================================================================================
+
+--------------------------------------------------------------------------------
+FLOORS (Dungeon.cpp, line ~386-400)
+--------------------------------------------------------------------------------
+Light Floors (Floors 1-3):
+  tile_0000.png = Tile 0
+  tile_0001.png = Tile 1
+  tile_0002.png = Tile 2
+  tile_0003.png = Tile 3
+
+Mid-tone Floors (Floors 4-6):
+  tile_0006.png = Tile 6
+  tile_0007.png = Tile 7
+  tile_0008.png = Tile 8
+  tile_0009.png = Tile 9
+
+Dark Floors (Floors 7-10):
+  tile_0012.png = Tile 12
+  tile_0013.png = Tile 13
+  tile_0014.png = Tile 14
+  tile_0015.png = Tile 15
+
+--------------------------------------------------------------------------------
+WALLS (Dungeon.cpp, line ~384)
+--------------------------------------------------------------------------------
+  tile_0023.png = Tile 23 (Wall)
+
+--------------------------------------------------------------------------------
+STAIRS (Dungeon.cpp, line ~402-418)
+--------------------------------------------------------------------------------
+  tile_0036.png = Tile 36 (Stairs UP - exit)
+  tile_0037.png = Tile 37 (Stairs DOWN - entrance)
+
+--------------------------------------------------------------------------------
+DOORS (Dungeon.cpp, line ~420)
+--------------------------------------------------------------------------------
+  tile_0030.png = Tile 30 (Door closed)
+
+--------------------------------------------------------------------------------
+TREASURE (Dungeon.cpp, line ~422)
+--------------------------------------------------------------------------------
+  tile_0038.png = Tile 38 (Treasure chest)
+
+--------------------------------------------------------------------------------
+GLOW EFFECT (Dungeon.cpp, line ~405-415)
+--------------------------------------------------------------------------------
+  tile_0050.png = Tile 50 (Yellow glow under stairs)
+
+--------------------------------------------------------------------------------
+PLAYER CHARACTERS (Player.cpp, line ~180-190)
+--------------------------------------------------------------------------------
+  tile_0084.png = Tile 84 (Warrior)
+  tile_0085.png = Tile 85 (Rogue)
+  tile_0086.png = Tile 86 (Mage)
+
+--------------------------------------------------------------------------------
+ENEMIES (Enemy.cpp, line ~128-154)
+--------------------------------------------------------------------------------
+Basic Enemies:
+  tile_0112.png = Tile 112 (Slime)
+  tile_0104.png = Tile 104 (Goblin)
+  tile_0105.png = Tile 105 (Orc)
+  tile_0106.png = Tile 106 (Skeleton)
+
+Advanced Enemies:
+  tile_0100.png = Tile 100 (Dark Mage)
+  tile_0102.png = Tile 102 (Gargoyle)
+  tile_0103.png = Tile 103 (Minotaur)
+  tile_0108.png = Tile 108 (Shadow/Wraith)
+
+Boss Enemies:
+  tile_0109.png = Tile 109 (Vampire)
+  tile_0110.png = Tile 110 (Lich/Necromancer)
+  tile_0111.png = Tile 111 (Dragon)
+  tile_0107.png = Tile 107 (Boss - generic)
+
+================================================================================
+HOW TO CHANGE TILE MAPPINGS:
+================================================================================
+
+1. Open the tile images folder and look at each tile
+2. Find the tile number you want to use (e.g., tile_0050.png = Tile 50)
+3. Edit the corresponding code file:
+   - Floors/Walls/Doors/Stairs → src/Dungeon.cpp
+   - Player character → src/Player.cpp
+   - Enemies → src/Enemy.cpp
+
+4. Change the tileIndex number in the code
+
+EXAMPLE:
+--------
+If you want Goblin to use tile_0097.png instead of tile_0104.png:
+
+In Enemy.cpp, line ~131, change:
+    tileIndex = 104;  // OLD
+to:
+    tileIndex = 97;   // NEW
+
+Then rebuild: cmake --build build --config Debug
+
+================================================================================
+QUICK CODE SNIPPETS TO COPY:
+================================================================================
+
+// FLOOR TILES (Dungeon.cpp)
+tileIndexToUse = 0;   // tile_0000.png
+tileIndexToUse = 1;   // tile_0001.png
+tileIndexToUse = 2;   // tile_0002.png
+// ... up to ...
+tileIndexToUse = 131; // tile_0131.png
+
+// WALL
+tileIndexToUse = 23;  // Current wall tile
+
+// STAIRS
+tileIndexToUse = 36;  // Stairs up (exit)
+tileIndexToUse = 37;  // Stairs down (start)
+
+// DOOR
+tileIndexToUse = 30;  // Closed door
+
+// CHEST
+tileIndexToUse = 38;  // Treasure chest
+
+// PLAYER (Player.cpp)
+tileIndex = 84;  // Warrior
+tileIndex = 85;  // Rogue
+tileIndex = 86;  // Mage
+
+// ENEMIES (Enemy.cpp)
+tileIndex = 112; // Slime
+tileIndex = 104; // Goblin
+tileIndex = 105; // Orc
+tileIndex = 106; // Skeleton
+tileIndex = 108; // Wraith
+tileIndex = 109; // Vampire
+tileIndex = 110; // Lich
+tileIndex = 111; // Dragon
+tileIndex = 107; // Boss
+
+================================================================================

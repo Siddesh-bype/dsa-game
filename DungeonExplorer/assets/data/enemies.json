@@ -1,0 +1,125 @@
+[
+  {
+    "id": "goblin",
+    "name": "Goblin Scout",
+    "type": "melee",
+    "hp": 50,
+    "attack": 8,
+    "range": 1,
+    "speed": 1.0,
+    "drop_table": [
+      {"item_id": "potion", "weight": 60},
+      {"item_id": "coin_gold", "weight": 30},
+      {"item_id": "sword_iron", "weight": 5},
+      {"item_id": "dagger_rusty", "weight": 15}
+    ]
+  },
+  {
+    "id": "slime",
+    "name": "Slime",
+    "type": "melee",
+    "hp": 30,
+    "attack": 6,
+    "range": 1,
+    "speed": 0.8,
+    "drop_table": [
+      {"item_id": "potion", "weight": 80},
+      {"item_id": "elixir", "weight": 2},
+      {"item_id": "coin_gold", "weight": 20}
+    ]
+  },
+  {
+    "id": "skeleton",
+    "name": "Skeleton Warrior",
+    "type": "melee",
+    "hp": 70,
+    "attack": 12,
+    "range": 1,
+    "speed": 1.1,
+    "drop_table": [
+      {"item_id": "sword_iron", "weight": 25},
+      {"item_id": "shield_wood", "weight": 20},
+      {"item_id": "potion", "weight": 40},
+      {"item_id": "coin_gold", "weight": 15}
+    ]
+  },
+  {
+    "id": "archer",
+    "name": "Goblin Archer",
+    "type": "ranged",
+    "hp": 45,
+    "attack": 10,
+    "range": 4,
+    "speed": 1.2,
+    "drop_table": [
+      {"item_id": "bow_hunting", "weight": 30},
+      {"item_id": "potion", "weight": 50},
+      {"item_id": "coin_gold", "weight": 20}
+    ]
+  },
+  {
+    "id": "orc",
+    "name": "Orc Warrior",
+    "type": "melee",
+    "hp": 100,
+    "attack": 18,
+    "range": 1,
+    "speed": 0.9,
+    "drop_table": [
+      {"item_id": "sword_flame", "weight": 10},
+      {"item_id": "sword_iron", "weight": 30},
+      {"item_id": "shield_iron", "weight": 20},
+      {"item_id": "elixir", "weight": 25},
+      {"item_id": "gem_ruby", "weight": 5}
+    ]
+  },
+  {
+    "id": "dark_mage",
+    "name": "Dark Mage",
+    "type": "ranged",
+    "hp": 60,
+    "attack": 20,
+    "range": 5,
+    "speed": 1.0,
+    "drop_table": [
+      {"item_id": "fire_scroll", "weight": 15},
+      {"item_id": "lightning_rod", "weight": 10},
+      {"item_id": "amulet_wisdom", "weight": 8},
+      {"item_id": "elixir", "weight": 35},
+      {"item_id": "gem_ruby", "weight": 12}
+    ]
+  },
+  {
+    "id": "dragon",
+    "name": "Dragon",
+    "type": "boss",
+    "hp": 500,
+    "attack": 40,
+    "range": 3,
+    "speed": 1.3,
+    "drop_table": [
+      {"item_id": "sword_legendary", "weight": 40},
+      {"item_id": "armor_dragon", "weight": 30},
+      {"item_id": "potion_mega", "weight": 50},
+      {"item_id": "gem_ruby", "weight": 60},
+      {"item_id": "revive_scroll", "weight": 10}
+    ]
+  },
+  {
+    "id": "demon_lord",
+    "name": "Demon Lord",
+    "type": "boss",
+    "hp": 800,
+    "attack": 50,
+    "range": 2,
+    "speed": 1.5,
+    "drop_table": [
+      {"item_id": "sword_legendary", "weight": 50},
+      {"item_id": "armor_dragon", "weight": 40},
+      {"item_id": "amulet_health", "weight": 30},
+      {"item_id": "potion_mega", "weight": 60},
+      {"item_id": "gem_ruby", "weight": 70},
+      {"item_id": "revive_scroll", "weight": 20}
+    ]
+  }
+]

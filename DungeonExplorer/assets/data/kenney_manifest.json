@@ -1,0 +1,25 @@
+{
+  "tileset": "assets/kenney/tilemap.png",
+  "player": "assets/kenney/characters/player_knight.png",
+  "enemies": {
+    "goblin": "assets/kenney/characters/goblin.png",
+    "slime": "assets/kenney/characters/slime.png",
+    "orc": "assets/kenney/characters/orc.png",
+    "mage": "assets/kenney/characters/mage.png"
+  },
+  "ui": {
+    "hp_bar": "assets/kenney/ui/barRed_horizontalMid.png",
+    "xp_bar": "assets/kenney/ui/barBlue_horizontalMid.png",
+    "panel": "assets/kenney/ui/panel_brown.png",
+    "button": "assets/kenney/ui/buttonBlue.png"
+  },
+  "spritesheets": {
+    "tiny_dungeon": {
+      "path": "assets/kenney/tilemap.png",
+      "tileSize": 16,
+      "columns": 12,
+      "rows": 11,
+      "spacing": 1
+    }
+  }
+}

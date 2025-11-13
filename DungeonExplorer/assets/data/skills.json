@@ -1,0 +1,122 @@
+{
+  "skill_tree": {
+    "name": "Combat & Support Skills",
+    "root": {
+      "id": "slash",
+      "name": "Slash",
+      "type": "active",
+      "description": "Basic attack skill - deals +15 damage",
+      "damage": 15,
+      "cost": 0,
+      "unlocked": true,
+      "hotkey": 1,
+      "left": {
+        "id": "power_strike",
+        "name": "Power Strike",
+        "type": "active",
+        "description": "Powerful attack - deals +30 damage",
+        "damage": 30,
+        "cost": 1,
+        "unlocked": false,
+        "hotkey": 2,
+        "left": {
+          "id": "whirlwind",
+          "name": "Whirlwind",
+          "type": "active",
+          "description": "Hits all adjacent enemies for 25 damage",
+          "damage": 25,
+          "aoe": true,
+          "cost": 2,
+          "unlocked": false,
+          "hotkey": 3,
+          "left": {
+            "id": "flame_wave",
+            "name": "Flame Wave",
+            "type": "active",
+            "description": "Fire AOE that burns enemies for 3 turns (20 dmg/turn)",
+            "damage": 20,
+            "aoe": true,
+            "burnDuration": 3,
+            "cost": 3,
+            "unlocked": false,
+            "hotkey": 4
+          },
+          "right": {
+            "id": "endless_fury",
+            "name": "Endless Fury",
+            "type": "passive",
+            "description": "+10% attack speed",
+            "attackSpeedBonus": 0.1,
+            "cost": 2,
+            "unlocked": false
+          }
+        },
+        "right": {
+          "id": "shadow_step",
+          "name": "Shadow Step",
+          "type": "active",
+          "description": "Dash 2 tiles in any direction",
+          "dashDistance": 2,
+          "cost": 2,
+          "unlocked": false,
+          "hotkey": 5
+        }
+      },
+      "right": {
+        "id": "healing_light",
+        "name": "Healing Light",
+        "type": "active",
+        "description": "Restore 30 HP instantly",
+        "healing": 30,
+        "cost": 1,
+        "unlocked": false,
+        "left": {
+          "id": "divine_barrier",
+          "name": "Divine Barrier",
+          "type": "active",
+          "description": "Reduce damage by 50% for 5 turns",
+          "damageReduction": 0.5,
+          "duration": 5,
+          "cost": 2,
+          "unlocked": false,
+          "left": {
+            "id": "iron_will",
+            "name": "Iron Will",
+            "type": "passive",
+            "description": "+10% damage resistance",
+            "damageResistance": 0.1,
+            "cost": 2,
+            "unlocked": false
+          }
+        },
+        "right": {
+          "id": "fortify",
+          "name": "Fortify",
+          "type": "passive",
+          "description": "+10 defense permanently",
+          "defenseBonus": 10,
+          "cost": 1,
+          "unlocked": false,
+          "left": {
+            "id": "life_regen",
+            "name": "Life Regen",
+            "type": "passive",
+            "description": "+3 HP per second",
+            "hpPerSecond": 3,
+            "cost": 2,
+            "unlocked": false
+          },
+          "right": {
+            "id": "critical_mind",
+            "name": "Critical Mind",
+            "type": "passive",
+            "description": "+10% critical hit chance",
+            "critChance": 0.1,
+            "cost": 2,
+            "unlocked": false
+          }
+        }
+      }
+    }
+  }
+}

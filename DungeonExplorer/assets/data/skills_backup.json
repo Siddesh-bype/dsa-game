@@ -1,0 +1,54 @@
+{
+  "skill_tree": {
+    "name": "Combat Skills",
+    "root": {
+      "id": "basic_combat",
+      "name": "Basic Combat",
+      "description": "Foundation of combat abilities",
+      "cost": 0,
+      "unlocked": true,
+      "left": {
+        "id": "power_strike",
+        "name": "Power Strike",
+        "description": "Increased damage attacks",
+        "cost": 1,
+        "unlocked": false,
+        "left": {
+          "id": "berserker",
+          "name": "Berserker",
+          "description": "Massive damage boost",
+          "cost": 2,
+          "unlocked": false
+        },
+        "right": {
+          "id": "critical_hit",
+          "name": "Critical Hit",
+          "description": "Chance for critical damage",
+          "cost": 2,
+          "unlocked": false
+        }
+      },
+      "right": {
+        "id": "shield_block",
+        "name": "Shield Block",
+        "description": "Reduce incoming damage",
+        "cost": 1,
+        "unlocked": false,
+        "left": {
+          "id": "iron_skin",
+          "name": "Iron Skin",
+          "description": "Increased max health",
+          "cost": 2,
+          "unlocked": false
+        },
+        "right": {
+          "id": "regeneration",
+          "name": "Regeneration",
+          "description": "Health over time",
+          "cost": 2,
+          "unlocked": false
+        }
+      }
+    }
+  }
+}

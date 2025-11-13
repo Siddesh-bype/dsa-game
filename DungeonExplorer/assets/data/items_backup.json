@@ -1,0 +1,168 @@
+{
+  "items": [
+    {
+      "id": "potion",
+      "name": "Potion",
+      "type": "consumable",
+      "damage": 0,
+      "value": 50,
+      "healing": 50,
+      "description": "Restores 50 HP instantly"
+    },
+    {
+      "id": "elixir",
+      "name": "Elixir",
+      "type": "consumable",
+      "damage": 0,
+      "value": 150,
+      "healing": 100,
+      "xpBonus": 25,
+      "description": "Restores 100 HP and grants 25 XP"
+    },
+    {
+      "id": "smoke_bomb",
+      "name": "Smoke Bomb",
+      "type": "utility",
+      "damage": 0,
+      "value": 40,
+      "description": "Creates smoke cloud to escape enemies"
+    },
+    {
+      "id": "bomb",
+      "name": "Bomb",
+      "type": "attack",
+      "damage": 50,
+      "value": 80,
+      "radius": 2,
+      "description": "Deals 50 damage in 2-tile radius"
+    },
+    {
+      "id": "sword_iron",
+      "name": "Iron Sword",
+      "type": "weapon",
+      "damage": 15,
+      "value": 50,
+      "attackBonus": 15,
+      "description": "A sturdy iron blade (+15 attack)"
+    },
+    {
+      "id": "sword_flame",
+      "name": "Flame Sword",
+      "type": "weapon",
+      "damage": 25,
+      "value": 200,
+      "attackBonus": 25,
+      "burnEffect": true,
+      "description": "Blazing sword that burns enemies (+25 attack)"
+    },
+    {
+      "id": "shield",
+      "name": "Shield",
+      "type": "armor",
+      "damage": 0,
+      "value": 60,
+      "defenseBonus": 10,
+      "description": "Wooden shield for protection (+10 defense)"
+    },
+    {
+      "id": "cloak",
+      "name": "Cloak",
+      "type": "armor",
+      "damage": 0,
+      "value": 80,
+      "dodgeBonus": 10,
+      "description": "Enchanted cloak (+10% dodge chance)"
+    },
+    {
+      "id": "amulet_wisdom",
+      "name": "Amulet of Wisdom",
+      "type": "accessory",
+      "damage": 0,
+      "value": 120,
+      "xpMultiplier": 1.5,
+      "description": "Increases XP gain by 50%"
+    },
+    {
+      "id": "ring_fortune",
+      "name": "Ring of Fortune",
+      "type": "accessory",
+      "damage": 0,
+      "value": 100,
+      "lootRarity": 1.3,
+      "description": "Increases loot rarity by 30%"
+    },
+      "type": "consumable",
+      "damage": 0,
+      "value": 25,
+      "healing": 50,
+      "description": "Restores 50 HP"
+    },
+    {
+      "id": "potion_mega",
+      "name": "Mega Potion",
+      "type": "consumable",
+      "damage": 0,
+      "value": 75,
+      "healing": 150,
+      "description": "Restores 150 HP"
+    },
+    {
+      "id": "shield_wood",
+      "name": "Wooden Shield",
+      "type": "armor",
+      "damage": 0,
+      "value": 30,
+      "defense": 5,
+      "description": "Basic wooden protection"
+    },
+    {
+      "id": "shield_iron",
+      "name": "Iron Shield",
+      "type": "armor",
+      "damage": 0,
+      "value": 80,
+      "defense": 15,
+      "description": "Solid iron defense"
+    },
+    {
+      "id": "bow_hunting",
+      "name": "Hunting Bow",
+      "type": "weapon",
+      "damage": 12,
+      "value": 45,
+      "description": "A reliable ranged weapon"
+    },
+    {
+      "id": "ring_silver",
+      "name": "Silver Ring",
+      "type": "treasure",
+      "damage": 0,
+      "value": 75,
+      "description": "A valuable silver ring"
+    },
+    {
+      "id": "coin_gold",
+      "name": "Gold Coin",
+      "type": "treasure",
+      "damage": 0,
+      "value": 100,
+      "description": "A shiny gold coin"
+    },
+    {
+      "id": "gem_ruby",
+      "name": "Ruby Gem",
+      "type": "treasure",
+      "damage": 0,
+      "value": 250,
+      "description": "A precious ruby gemstone"
+    },
+    {
+      "id": "dagger_rusty",
+      "name": "Rusty Dagger",
+      "type": "weapon",
+      "damage": 5,
+      "value": 10,
+      "description": "An old, worn dagger"
+    }
+  ]
+}
