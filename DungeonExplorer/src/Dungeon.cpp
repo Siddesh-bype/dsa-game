@@ -67,13 +67,15 @@ void Dungeon::generate(int numRooms) {
                     }
                 }
                 
-                std::cout << "[DEBUG] Stairs (2x2) placed at (" << stairsX << ", " << stairsY << ") in room " << furthestRoom << std::endl;
+                // CHANGE: 2025-11-14 - Reduce debug spam from generation
+                // std::cout << "[DEBUG] Stairs placed..." << std::endl;
                 break;
             }
         }
     }
     
-    std::cout << "[Dungeon] Generation complete!" << std::endl;
+    // CHANGE: 2025-11-14 - Reduce debug spam
+    // std::cout << "[Dungeon] Generation complete!" << std::endl;
 }
 
 void Dungeon::generateRooms(int numRooms) {
@@ -186,7 +188,8 @@ void Dungeon::carveHorizontalCorridor(const Room& r1, const Room& r2) {
         if (doorX >= 0 && doorX < GRID_WIDTH && doorY >= 0 && doorY < GRID_HEIGHT) {
             grid[doorY][doorX] = TileType::Door;
             doors.push_back(DoorData(doorX, doorY, r1.id, r2.id, false, true));
-            std::cout << "[DEBUG] Door placed at (" << doorX << ", " << doorY << ") between rooms " << r1.id << " and " << r2.id << std::endl;
+            // CHANGE: 2025-11-14 - Reduce debug spam
+            // std::cout << "[DEBUG] Door placed..." << std::endl;
         }
     }
     
@@ -565,4 +568,16 @@ void Dungeon::checkRoomClear(int roomId, int enemyCount) {
             }
         }
     }
+}
+
+// CHANGE: 2025-11-14 - Helper function to get room ID at a position
+int Dungeon::getRoomIdAt(int x, int y) const {
+    for (size_t i = 0; i < rooms.size(); i++) {
+        const auto& room = rooms[i];
+        if (x >= room.x && x < room.x + room.width &&
+            y >= room.y && y < room.y + room.height) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;  // Not in any room (in corridor)
 }

@@ -915,6 +915,19 @@ void Game::moveEnemiesWithBFS() {
             }
         }
     }
+    
+    // CHANGE: 2025-11-14 - Check all rooms for clearance after movement
+    auto rooms = dungeon->getRooms();
+    for (size_t i = 0; i < rooms.size(); i++) {
+        int enemyCount = 0;
+        for (const auto& enemy : enemies) {
+            int roomId = dungeon->getRoomIdAt(enemy.x, enemy.y);
+            if (roomId == static_cast<int>(i)) {
+                enemyCount++;
+            }
+        }
+        dungeon->checkRoomClear(i, enemyCount);
+    }
 }
 
 void Game::render() {

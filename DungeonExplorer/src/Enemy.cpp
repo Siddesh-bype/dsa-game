@@ -77,8 +77,8 @@ void EnemyManager::spawnEnemy(const std::string& name, const std::string& type, 
     
     enemies.push_back(enemy);
     
-    std::cout << "[EnemyManager] Spawned " << name << " (" << type << ") at (" << x << ", " << y 
-              << ") with " << health << " HP, range " << range << ", AI=" << enemy.aiLevel << std::endl;
+    // CHANGE: 2025-11-14 - Reduce console spam in spawn loops (moved to verbose/debug mode)
+    // std::cout << "[EnemyManager] Spawned " << name << "..." << std::endl;
 }
 
 // CHANGE: 2025-11-10 - Spawn enemy with drop table for loot system
@@ -118,15 +118,15 @@ void EnemyManager::spawnEnemyWithDrops(const std::string& name, const std::strin
     
     enemies.push_back(enemy);
     
-    std::cout << "[EnemyManager] Spawned " << name << " (" << type << ") at (" << x << ", " << y 
-              << ") with " << health << " HP, AI=" << enemy.aiLevel 
-              << ", drops=" << dropTable.size() << " items" << std::endl;
+    // CHANGE: 2025-11-14 - Reduce console spam in spawn loops
+    // std::cout << "[EnemyManager] Spawned " << name << " with drops..." << std::endl;
 }
 
 void EnemyManager::removeEnemy(int id) {
     for (auto it = enemies.begin(); it != enemies.end(); ++it) {
         if (it->id == id) {
-            std::cout << "[EnemyManager] Removed enemy: " << it->name << std::endl;
+            // CHANGE: 2025-11-14 - Remove debug spam
+            // std::cout << "[EnemyManager] Removed enemy: " << it->name << std::endl;
             enemies.erase(it);
             return;
         }
@@ -137,7 +137,8 @@ void EnemyManager::removeDeadEnemies() {
     auto it = enemies.begin();
     while (it != enemies.end()) {
         if (it->health <= 0) {
-            std::cout << "[EnemyManager] Removed dead enemy: " << it->name << std::endl;
+            // CHANGE: 2025-11-14 - Remove debug spam from hot path
+            // std::cout << "[EnemyManager] Removed dead enemy: " << it->name << std::endl;
             it = enemies.erase(it);
         } else {
             ++it;
@@ -148,7 +149,8 @@ void EnemyManager::removeDeadEnemies() {
 void EnemyManager::initializeTurnQueue() {
     turnQueue.clear();
     
-    std::cout << "[EnemyManager] Initializing turn queue with " << enemies.size() << " enemies" << std::endl;
+    // CHANGE: 2025-11-14 - Remove debug spam
+    // std::cout << "[EnemyManager] Initializing turn queue with " << enemies.size() << " enemies" << std::endl;
     
     for (auto& enemy : enemies) {
         turnQueue.enqueue(&enemy);
@@ -169,7 +171,8 @@ EnemyData* EnemyManager::getNextEnemy() {
 
 void EnemyManager::processNextTurn() {
     if (turnQueue.isEmpty()) {
-        std::cout << "[EnemyManager] Turn queue empty, reinitializing..." << std::endl;
+        // CHANGE: 2025-11-14 - Remove debug spam
+        // std::cout << "[EnemyManager] Turn queue empty, reinitializing..." << std::endl;
         initializeTurnQueue();
     }
     
@@ -177,8 +180,8 @@ void EnemyManager::processNextTurn() {
         EnemyData* enemy = turnQueue.front();
         turnQueue.dequeue();
         
-        std::cout << "[EnemyManager] Processing turn for: " << enemy->name 
-                  << " (DMG: " << enemy->damage << ")" << std::endl;
+        // CHANGE: 2025-11-14 - Remove debug spam
+        // std::cout << "[EnemyManager] Processing turn for: " << enemy->name << std::endl;
         
         // Re-enqueue for next round
         turnQueue.enqueue(enemy);

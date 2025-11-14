@@ -116,6 +116,9 @@ public:
     bool canPassDoor(int x, int y) const;
     void checkRoomClear(int roomId, int enemyCount);
     
+    // CHANGE: 2025-11-14 - Helper to find which room contains a position
+    int getRoomIdAt(int x, int y) const;
+    
     // CHANGE: 2025-11-14 - Door spawning support
     void spawnDoors();  // Spawn doors during level generation
     void clearDoors();  // Clear all doors for floor reset
