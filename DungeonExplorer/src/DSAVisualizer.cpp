@@ -28,7 +28,8 @@ void DSAVisualizer::renderStackTrail(sf::RenderWindow& window, const Player& pla
         window.draw(footprint);
     }
     
-    if (font) {
+    // CHANGE: 2025-11-14 - Add null pointer validation for font before rendering text
+    if (font && font->getInfo().family != "") {
         sf::Text stackLabel(*font, "Stack Trail", 10);
         stackLabel.setPosition(sf::Vector2f(10.f, 75.f));
         stackLabel.setFillColor(sf::Color(150, 200, 255));
@@ -104,7 +105,8 @@ void DSAVisualizer::renderHeapGlow(sf::RenderWindow& window, sf::Vector2f positi
         window.draw(sparkle);
     }
     
-    if (font && value > 0) {
+    // CHANGE: 2025-11-14 - Add null pointer validation for font before rendering
+    if (font && font->getInfo().family != "" && value > 0) {
         sf::Text valueText(*font, std::to_string(value), 12);
         valueText.setPosition(sf::Vector2f(position.x - 10.f, position.y - 20.f));
         valueText.setFillColor(sf::Color(255, 255, 255));

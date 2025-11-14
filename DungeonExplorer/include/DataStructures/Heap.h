@@ -51,7 +51,8 @@ public:
     void insert(const T& value) {
         data.push_back(value);
         heapifyUp(data.size() - 1);
-        std::cout << "[DSA-Heap] Inserted element. Heap size: " << data.size() << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam during gameplay loops
+        // std::cout << "[DSA-Heap] Inserted element. Heap size: " << data.size() << std::endl;
     }
     
     T extractTop() {
@@ -67,7 +68,8 @@ public:
             heapifyDown(0);
         }
         
-        std::cout << "[DSA-Heap] Extracted top element. Heap size: " << data.size() << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam during gameplay loops
+        // std::cout << "[DSA-Heap] Extracted top element. Heap size: " << data.size() << std::endl;
         return top;
     }
     
@@ -88,6 +90,7 @@ public:
     
     void clear() {
         data.clear();
-        std::cout << "[DSA-Heap] Cleared heap" << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam during gameplay
+        // std::cout << "[DSA-Heap] Cleared heap" << std::endl;
     }
 };

@@ -13,7 +13,8 @@ public:
     
     void push(const T& value) {
         data.push_back(value);
-        std::cout << "[DSA-Stack] Pushed element. Stack size: " << data.size() << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam during gameplay loops
+        // std::cout << "[DSA-Stack] Pushed element. Stack size: " << data.size() << std::endl;
     }
     
     void pop() {
@@ -21,7 +22,8 @@ public:
             throw std::out_of_range("Stack is empty");
         }
         data.pop_back();
-        std::cout << "[DSA-Stack] Popped element. Stack size: " << data.size() << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam during gameplay loops
+        // std::cout << "[DSA-Stack] Popped element. Stack size: " << data.size() << std::endl;
     }
     
     T& top() {
@@ -48,6 +50,7 @@ public:
     
     void clear() {
         data.clear();
-        std::cout << "[DSA-Stack] Cleared stack" << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam during gameplay
+        // std::cout << "[DSA-Stack] Cleared stack" << std::endl;
     }
 };
