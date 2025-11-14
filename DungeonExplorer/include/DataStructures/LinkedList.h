@@ -24,7 +24,8 @@ public:
         newNode->next = head;
         head = newNode;
         listSize++;
-        std::cout << "[DSA-LinkedList] Inserted element. List size: " << listSize << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam by removing verbose logging in release builds
+        // std::cout << "[DSA-LinkedList] Inserted element. List size: " << listSize << std::endl;
     }
     
     void append(const T& value) {
@@ -40,7 +41,8 @@ public:
             current->next = newNode;
         }
         listSize++;
-        std::cout << "[DSA-LinkedList] Appended element. List size: " << listSize << std::endl;
+        // CHANGE: 2025-11-14 - Reduce console spam
+        // std::cout << "[DSA-LinkedList] Appended element. List size: " << listSize << std::endl;
     }
     
     bool remove(const T& value) {
@@ -49,7 +51,7 @@ public:
         if (head->data == value) {
             head = head->next;
             listSize--;
-            std::cout << "[DSA-LinkedList] Removed element. List size: " << listSize << std::endl;
+            // std::cout << "[DSA-LinkedList] Removed element. List size: " << listSize << std::endl;
             return true;
         }
         
@@ -61,7 +63,7 @@ public:
         if (current->next) {
             current->next = current->next->next;
             listSize--;
-            std::cout << "[DSA-LinkedList] Removed element. List size: " << listSize << std::endl;
+            // std::cout << "[DSA-LinkedList] Removed element. List size: " << listSize << std::endl;
             return true;
         }
         

@@ -940,6 +940,43 @@ void Game::render() {
             }
         }
         
+        // CHANGE: 2025-11-14 - Debug rendering: Bounding boxes
+        if (debugShowBoundingBoxes) {
+            if (player) {
+                Position playerPos = player->getPosition();
+                sf::RectangleShape playerBox(sf::Vector2f(32.0f, 32.0f));
+                playerBox.setPosition(sf::Vector2f(playerPos.x * 32.0f, playerPos.y * 32.0f));
+                playerBox.setFillColor(sf::Color::Transparent);
+                playerBox.setOutlineThickness(2.0f);
+                playerBox.setOutlineColor(sf::Color(0, 255, 0));  // Green for player
+                window.draw(playerBox);
+            }
+            
+            if (enemyManager) {
+                const auto& enemies = enemyManager->getEnemies();
+                for (const auto& enemy : enemies) {
+                    sf::RectangleShape enemyBox(sf::Vector2f(32.0f, 32.0f));
+                    enemyBox.setPosition(sf::Vector2f(enemy.x * 32.0f, enemy.y * 32.0f));
+                    enemyBox.setFillColor(sf::Color::Transparent);
+                    enemyBox.setOutlineThickness(2.0f);
+                    enemyBox.setOutlineColor(sf::Color(255, 0, 0));  // Red for enemies
+                    window.draw(enemyBox);
+                }
+            }
+        }
+        
+        // CHANGE: 2025-11-14 - Debug rendering: Loot item bounds
+        if (debugShowBoundingBoxes) {
+            for (const auto& loot : loots) {
+                sf::RectangleShape lootBox(sf::Vector2f(32.0f, 32.0f));
+                lootBox.setPosition(sf::Vector2f(loot.getX() * 32.0f, loot.getY() * 32.0f));
+                lootBox.setFillColor(sf::Color::Transparent);
+                lootBox.setOutlineThickness(2.0f);
+                lootBox.setOutlineColor(sf::Color(255, 255, 0));  // Yellow for loot
+                window.draw(lootBox);
+            }
+        }
+        
         // Apply lighting effect (dark overlay with light around player)
         if (player && renderer->isLightingEnabled()) {
             renderer->applyLighting(*player);
@@ -1196,6 +1233,10 @@ void Game::spawnEnemiesForFloor(int floor) {
 }
 
 void Game::nextFloor() {
+    // CHANGE: 2025-11-14 - Clean up loot and effects from previous floor
+    loots.clear();  // Remove all unpicked loot
+    activeEffects.clear();  // Remove all active visual effects
+    
     currentFloor++;
     
     // Check for victory condition
