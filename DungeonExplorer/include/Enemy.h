@@ -22,11 +22,13 @@ struct EnemyData {
     int aiLevel;  // 0=Random, 1=Chase, 2=Dijkstra, 3=Flank, 4=Boss
     int floorLevel;  // Which floor this enemy spawned on
     nlohmann::json dropTableJson;  // Drop table for loot
+    std::string textureKey;  // CHANGE: 2025-11-14 - Cache texture key to avoid string searches
     
     EnemyData(int id = 0, const std::string& name = "Enemy", const std::string& type = "melee", 
               int hp = 50, int dmg = 10, int x = 0, int y = 0, int range = 1, float speed = 1.0f)
         : id(id), name(name), type(type), health(hp), maxHealth(hp), damage(dmg), 
-          x(x), y(y), attackRange(range), moveSpeed(speed), aiLevel(0), floorLevel(1) {}
+          x(x), y(y), attackRange(range), moveSpeed(speed), aiLevel(0), floorLevel(1), 
+          textureKey("goblin") {}  // Default texture
 };
 
 class EnemyManager {

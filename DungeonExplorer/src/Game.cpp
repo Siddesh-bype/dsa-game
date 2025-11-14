@@ -1154,8 +1154,15 @@ void Game::checkExitAccess() {
         auto rooms = dungeon->getRooms();
         if (!rooms.empty()) {
             const auto& lastRoom = rooms.back();
+            // CHANGE: 2025-11-14 - Add bounds checking for exit stairs placement
             exitStairsPosition.x = lastRoom.x + lastRoom.width / 2;
             exitStairsPosition.y = lastRoom.y + lastRoom.height / 2;
+            
+            // Clamp to dungeon bounds
+            int maxX = dungeon->getWidth() - 1;
+            int maxY = dungeon->getHeight() - 1;
+            exitStairsPosition.x = std::max(0, std::min(exitStairsPosition.x, maxX));
+            exitStairsPosition.y = std::max(0, std::min(exitStairsPosition.y, maxY));
             
             // Place exit tile in dungeon
             dungeon->setTile(exitStairsPosition.x, exitStairsPosition.y, TileType::Exit);
@@ -1531,11 +1538,20 @@ void Game::checkRoomClearDoors() {
 }
 
 void Game::spawnLootAt(const sf::Vector2i& tilePos, const ItemNew& item) {
+    // CHANGE: 2025-11-14 - Implement max loot limit to prevent accumulation
+    static const int MAX_LOOTS = 100;  // Maximum items on ground at once
+    
+    if (loots.size() >= MAX_LOOTS) {
+        // Remove oldest loot to make room (FIFO cleanup)
+        std::cout << "[Loot] Max loot limit reached (" << MAX_LOOTS << "), removing oldest" << std::endl;
+        loots.erase(loots.begin());
+    }
+    
     Loot loot(item, tilePos);
     loots.push_back(loot);
     
     std::cout << "[Loot] Spawned " << item.name << " (" << item.getRarityName() 
-              << ") at (" << tilePos.x << ", " << tilePos.y << ")" << std::endl;
+              << ") at (" << tilePos.x << ", " << tilePos.y << ") [" << loots.size() << "/" << MAX_LOOTS << "]" << std::endl;
     
     // CHANGE: 2025-11-14 - Track rare/valuable loot using Heap for priority highlighting
     // Items with rarity >= 3 or value >= 100 are added to premium loot tracker

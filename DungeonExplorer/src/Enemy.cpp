@@ -30,7 +30,15 @@ void EnemyManager::setEnemyAILevel(EnemyData& enemy, int floor) {
         enemy.aiLevel = calculateAILevel(floor);
     }
     
-    const char* aiNames[] = {"Random", "Chase", "Dijkstra", "Flank", "Boss"};
+    // CHANGE: 2025-11-14 - Add bounds checking before array access
+    static const char* aiNames[] = {"Random", "Chase", "Dijkstra", "Flank", "Boss"};
+    static const int aiNamesSize = 5;
+    
+    if (enemy.aiLevel < 0 || enemy.aiLevel >= aiNamesSize) {
+        std::cerr << "[ERROR] AI level " << enemy.aiLevel << " out of bounds [0-" << aiNamesSize-1 << "]" << std::endl;
+        enemy.aiLevel = 0;  // Clamp to valid range
+    }
+    
     std::cout << "[EnemyAI] " << enemy.name << " assigned AI Level " << enemy.aiLevel 
               << " (" << aiNames[enemy.aiLevel] << ") for floor " << floor << std::endl;
 }
@@ -39,6 +47,34 @@ void EnemyManager::spawnEnemy(const std::string& name, const std::string& type, 
                               int health, int damage, int range, float speed, int floor) {
     EnemyData enemy(nextEnemyId++, name, type, health, damage, x, y, range, speed);
     setEnemyAILevel(enemy, floor);
+    
+    // CHANGE: 2025-11-14 - Cache texture key to avoid string searches every frame
+    if (name.find("Slime") != std::string::npos || name.find("Bogslium") != std::string::npos) {
+        enemy.textureKey = "slime";
+    } else if (name.find("Goblin") != std::string::npos) {
+        enemy.textureKey = "goblin";
+    } else if (name.find("Orc") != std::string::npos) {
+        enemy.textureKey = "orc";
+    } else if (name.find("Skeleton") != std::string::npos) {
+        enemy.textureKey = "skeleton";
+    } else if (name.find("Shadow") != std::string::npos || name.find("Wraith") != std::string::npos) {
+        enemy.textureKey = "wraith";
+    } else if (name.find("Vampire") != std::string::npos || name.find("Batilisk") != std::string::npos) {
+        enemy.textureKey = "vampire";
+    } else if (name.find("Lich") != std::string::npos || name.find("Necromancer") != std::string::npos) {
+        enemy.textureKey = "lich";
+    } else if (name.find("Dragon") != std::string::npos) {
+        enemy.textureKey = "dragon";
+    } else if (name.find("Dark Mage") != std::string::npos || name.find("Mage") != std::string::npos) {
+        enemy.textureKey = "dark_mage";
+    } else if (name.find("Gargoyle") != std::string::npos) {
+        enemy.textureKey = "gargoyle";
+    } else if (name.find("Minotaur") != std::string::npos) {
+        enemy.textureKey = "minotaur";
+    } else if (type == "boss") {
+        enemy.textureKey = "dragon";
+    }
+    
     enemies.push_back(enemy);
     
     std::cout << "[EnemyManager] Spawned " << name << " (" << type << ") at (" << x << ", " << y 
@@ -52,6 +88,34 @@ void EnemyManager::spawnEnemyWithDrops(const std::string& name, const std::strin
     EnemyData enemy(nextEnemyId++, name, type, health, damage, x, y, range, speed);
     setEnemyAILevel(enemy, floor);
     enemy.dropTableJson = dropTable;  // Store drop table
+    
+    // CHANGE: 2025-11-14 - Cache texture key like in spawnEnemy
+    if (name.find("Slime") != std::string::npos || name.find("Bogslium") != std::string::npos) {
+        enemy.textureKey = "slime";
+    } else if (name.find("Goblin") != std::string::npos) {
+        enemy.textureKey = "goblin";
+    } else if (name.find("Orc") != std::string::npos) {
+        enemy.textureKey = "orc";
+    } else if (name.find("Skeleton") != std::string::npos) {
+        enemy.textureKey = "skeleton";
+    } else if (name.find("Shadow") != std::string::npos || name.find("Wraith") != std::string::npos) {
+        enemy.textureKey = "wraith";
+    } else if (name.find("Vampire") != std::string::npos || name.find("Batilisk") != std::string::npos) {
+        enemy.textureKey = "vampire";
+    } else if (name.find("Lich") != std::string::npos || name.find("Necromancer") != std::string::npos) {
+        enemy.textureKey = "lich";
+    } else if (name.find("Dragon") != std::string::npos) {
+        enemy.textureKey = "dragon";
+    } else if (name.find("Dark Mage") != std::string::npos || name.find("Mage") != std::string::npos) {
+        enemy.textureKey = "dark_mage";
+    } else if (name.find("Gargoyle") != std::string::npos) {
+        enemy.textureKey = "gargoyle";
+    } else if (name.find("Minotaur") != std::string::npos) {
+        enemy.textureKey = "minotaur";
+    } else if (type == "boss") {
+        enemy.textureKey = "dragon";
+    }
+    
     enemies.push_back(enemy);
     
     std::cout << "[EnemyManager] Spawned " << name << " (" << type << ") at (" << x << ", " << y 
@@ -138,46 +202,8 @@ void EnemyManager::render(sf::RenderWindow& window, float tileSize) const {
         // 👹 ENEMY/MONSTER SPRITES - Using DebtsInTheDepths individual sprites
         // ═══════════════════════════════════════════════════════════════════════
         
-        std::string textureKey = "goblin";  // Default
-
-        if (enemy.name.find("Slime") != std::string::npos || enemy.name.find("Bogslium") != std::string::npos) {
-            textureKey = "slime";  // Bogslium sprite
-            
-        } else if (enemy.name.find("Goblin") != std::string::npos) {
-            textureKey = "goblin";
-            
-        } else if (enemy.name.find("Orc") != std::string::npos) {
-            textureKey = "orc";  // OrcArcher sprite
-            
-        } else if (enemy.name.find("Skeleton") != std::string::npos) {
-            textureKey = "skeleton";
-            
-        } else if (enemy.name.find("Shadow") != std::string::npos || enemy.name.find("Wraith") != std::string::npos) {
-            textureKey = "wraith";  // Ghost sprite
-            
-        } else if (enemy.name.find("Vampire") != std::string::npos || enemy.name.find("Batilisk") != std::string::npos) {
-            textureKey = "vampire";  // Batilisk sprite
-            
-        } else if (enemy.name.find("Lich") != std::string::npos || enemy.name.find("Necromancer") != std::string::npos) {
-            textureKey = "lich";  // LizardMonk sprite
-            
-        } else if (enemy.name.find("Dragon") != std::string::npos) {
-            textureKey = "dragon";
-            
-        } else if (enemy.name.find("Dark Mage") != std::string::npos || enemy.name.find("Mage") != std::string::npos) {
-            textureKey = "dark_mage";  // LizardMonk sprite
-            
-        } else if (enemy.name.find("Gargoyle") != std::string::npos) {
-            textureKey = "gargoyle";  // Batilisk sprite
-            
-        } else if (enemy.name.find("Minotaur") != std::string::npos) {
-            textureKey = "minotaur";
-            
-        } else if (enemy.type == "boss") {
-            textureKey = "dragon";  // Use dragon for boss
-        }
-
-        sf::Texture* enemyTex = AssetManager::getInstance().getTexture(textureKey);
+        // CHANGE: 2025-11-14 - Use cached textureKey instead of string searching every frame
+        sf::Texture* enemyTex = AssetManager::getInstance().getTexture(enemy.textureKey);
         if (enemyTex) {
             sf::Sprite enemySprite(*enemyTex);
             float scale = (enemy.type == "boss") ? 2.0f : 1.5f;
