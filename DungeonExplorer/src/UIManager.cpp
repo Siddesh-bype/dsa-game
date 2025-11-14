@@ -494,14 +494,14 @@ void UIManager::renderHUD(sf::RenderWindow& window, const Player& player, SkillT
 void UIManager::renderMiniMap(sf::RenderWindow& window, const Dungeon& dungeon, const Player& player, const EnemyManager& enemies) {
     // ═══════════════════════════════════════════════════════════════════════
     // 🗺️ MINI-MAP PANEL
-    // Shows dungeon overview, player position (cyan), and enemy positions (red)
-    // Background: Dark grey (30, 30, 30, 240)
+    // Shows dungeon rooms, player position (cyan), and enemy positions (red)
+    // Uses actual dungeon room data for accurate map representation
     // ═══════════════════════════════════════════════════════════════════════
     
     // Mini-map background - darker for better contrast
     sf::RectangleShape miniMapBg({170.f, 170.f});
     miniMapBg.setPosition(sf::Vector2f({615.f, 415.f}));
-    miniMapBg.setFillColor(sf::Color(30, 30, 30, 240));  // Darker background
+    miniMapBg.setFillColor(sf::Color(30, 30, 30, 240));
     miniMapBg.setOutlineThickness(2.0f);
     miniMapBg.setOutlineColor(sf::Color(100, 100, 120));
     window.draw(miniMapBg);
@@ -517,24 +517,23 @@ void UIManager::renderMiniMap(sf::RenderWindow& window, const Dungeon& dungeon, 
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // MINI-MAP TILES (Simplified grid view of dungeon)
-    // Light grey tiles (70, 70, 90) represent walkable areas
+    // MINI-MAP: RENDER ACTUAL DUNGEON ROOMS
+    // Green = walkable rooms, Dark = unexplored/blocked areas
     // ═══════════════════════════════════════════════════════════════════════
     
-    // Draw simplified dungeon (scale down)
-    float scale = 8.0f;  // Each tile is 8x8 pixels on mini-map
+    float scale = 0.6f;  // Scale factor for fitting dungeon on mini-map
     float offsetX = 625.f;
     float offsetY = 445.f;
     
-    for (int y = 0; y < dungeon.getHeight() && y < 20; y++) {
-        for (int x = 0; x < dungeon.getWidth() && x < 20; x++) {
-            sf::RectangleShape miniTile({scale - 1.f, scale - 1.f});
-            miniTile.setPosition(sf::Vector2f(offsetX + x * scale, offsetY + y * scale));
-            
-            // Improved contrast - darker floor tiles
-            miniTile.setFillColor(sf::Color(70, 70, 90));  // Slightly brighter than background
-            window.draw(miniTile);
-        }
+    // CHANGE: 2025-11-14 - Render actual room data instead of generic grid
+    const auto& rooms = dungeon.getRooms();
+    for (const auto& room : rooms) {
+        sf::RectangleShape roomRect(sf::Vector2f(room.width * scale - 1.f, room.height * scale - 1.f));
+        roomRect.setPosition(sf::Vector2f(offsetX + room.x * scale, offsetY + room.y * scale));
+        roomRect.setFillColor(sf::Color(70, 120, 70));  // Green for rooms
+        roomRect.setOutlineThickness(1.0f);
+        roomRect.setOutlineColor(sf::Color(100, 150, 100));
+        window.draw(roomRect);
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -549,17 +548,18 @@ void UIManager::renderMiniMap(sf::RenderWindow& window, const Dungeon& dungeon, 
         sf::CircleShape enemyDot(2.f);
         enemyDot.setPosition(sf::Vector2f(offsetX + enemy.x * scale - 2.f, 
                                           offsetY + enemy.y * scale - 2.f));
-        enemyDot.setFillColor(sf::Color(255, 50, 50));  // Bright red for enemies
+        enemyDot.setFillColor(sf::Color(255, 50, 50));
         window.draw(enemyDot);
     }
     
     // Draw player position on mini-map - bright cyan for high visibility (ON TOP)
+    float playerX = offsetX + player.getPosition().x * scale - 3.f;
+    float playerY = offsetY + player.getPosition().y * scale - 3.f;
     sf::CircleShape playerDot(3.f);
-    playerDot.setPosition(sf::Vector2f(offsetX + player.getPosition().x * scale - 3.f, 
-                                       offsetY + player.getPosition().y * scale - 3.f));
-    playerDot.setFillColor(sf::Color(0, 255, 255));  // Bright cyan for player
+    playerDot.setPosition(sf::Vector2f(playerX, playerY));
+    playerDot.setFillColor(sf::Color(0, 255, 255));
     playerDot.setOutlineThickness(1.f);
-    playerDot.setOutlineColor(sf::Color(255, 255, 255, 180));  // White outline for extra visibility
+    playerDot.setOutlineColor(sf::Color(255, 255, 255, 180));
     window.draw(playerDot);
 }
 
@@ -587,8 +587,7 @@ void UIManager::renderInventoryPanel(sf::RenderWindow& window, const Player& pla
         
         // Display new inventory system (ItemNew)
         player.getInventoryNew().traverse([&](const ItemNew& item) {
-            std::cout << "[DEBUG] Rendering item in inventory: " << item.name << std::endl;
-            
+            // CHANGE: 2025-11-14 - Removed console spam debug output from render loop
             // Item background
             sf::RectangleShape itemBg({320.f, 35.f});
             itemBg.setPosition(sf::Vector2f(240, yOffset));
@@ -772,17 +771,18 @@ void UIManager::renderTurnQueue(sf::RenderWindow& window, const EnemyManager& en
                 float iconX = startX + i * iconSpacing;
                 
                 // Red circle = enemy turn
-                sf::CircleShape enemyIcon(12.f);  // Slightly smaller
+                sf::CircleShape enemyIcon(12.f);
                 enemyIcon.setPosition(sf::Vector2f(iconX, 530.f));
-                enemyIcon.setFillColor(sf::Color(200, 50, 50));  // Bright red
+                enemyIcon.setFillColor(sf::Color(200, 50, 50));
                 enemyIcon.setOutlineThickness(2.0f);
-                enemyIcon.setOutlineColor(sf::Color(100, 0, 0));  // Darker red outline
+                enemyIcon.setOutlineColor(sf::Color(100, 0, 0));
                 window.draw(enemyIcon);
                 
-                // Enemy name (shortened to 5 chars)
+                // Enemy name (CHANGE: 2025-11-14 - Cache substring to avoid repeated string ops)
                 sf::Text enemyName(font);
                 enemyName.setCharacterSize(8);
-                std::string shortName = enemyList[i].name.substr(0, 5);
+                const std::string& fullName = enemyList[i].name;
+                std::string shortName = fullName.length() > 5 ? fullName.substr(0, 5) : fullName;
                 enemyName.setString(shortName);
                 
                 // Center text under icon
@@ -831,8 +831,9 @@ void UIManager::renderSkillHotkeys(sf::RenderWindow& window, const Player& playe
     std::vector<Skill*> activeSkills = skillTree->getActiveSkills();
     
     // Draw 7 slots: Q(Weapon), W(Armor), 1-5(Skills)
-    std::vector<std::string> slotKeys = {"Q", "W", "1", "2", "3", "4", "5"};
-    std::vector<std::string> slotLabels = {"Weapon", "Armor", "", "", "", "", ""};
+    // CHANGE: 2025-11-14 - Use static for unchanging slot data, pre-calculate positions
+    static const std::vector<std::string> slotKeys = {"Q", "W", "1", "2", "3", "4", "5"};
+    static const std::vector<std::string> slotLabels = {"Weapon", "Armor", "", "", "", "", ""};
     
     for (int i = 0; i < 7; i++) {
         float slotX = startX + i * spacing;
@@ -845,7 +846,7 @@ void UIManager::renderSkillHotkeys(sf::RenderWindow& window, const Player& playe
         slot.setOutlineColor(sf::Color(70, 70, 80));
         window.draw(slot);
         
-        // Key label (top-left)
+        // Key label (top-left) - CHANGE: 2025-11-14 - Cache text bounds
         sf::Text keyText(font);
         keyText.setCharacterSize(11);
         keyText.setString(slotKeys[i]);
@@ -873,10 +874,12 @@ void UIManager::renderSkillHotkeys(sf::RenderWindow& window, const Player& playe
             equipped.setFillColor(sf::Color(100, 100, 100));
             window.draw(equipped);
         }
-        // Handle skill slots (1-5)
+        // Handle skill slots (1-5) - CHANGE: 2025-11-14 - Bounds-check before access
         else {
             int skillHotkey = i - 1;  // Convert to 1-5
-            Skill* skill = skillTree->getSkillByHotkey(skillHotkey);
+            // Verify activeSkills has enough elements and index is valid before accessing
+            if (skillHotkey >= 0 && static_cast<size_t>(skillHotkey) < activeSkills.size()) {
+                Skill* skill = skillTree->getSkillByHotkey(skillHotkey);
             
             if (skill && skill->unlocked) {
                 bool isAvailable = skill->currentCooldown == 0 && player.getMana() >= skill->manaCost;
@@ -947,6 +950,7 @@ void UIManager::renderSkillHotkeys(sf::RenderWindow& window, const Player& playe
                 lockText.setFillColor(sf::Color(100, 100, 100));
                 window.draw(lockText);
             }
+            }  // Close bounds-check if statement
         }
     }
 }

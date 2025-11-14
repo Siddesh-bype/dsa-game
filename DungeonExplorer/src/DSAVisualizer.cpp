@@ -120,7 +120,8 @@ void DSAVisualizer::renderLootPopup(sf::RenderWindow& window, const std::string&
                                    int value, float x, float y, float time) {
     float alpha = 255.f * (1.f - time);
     
-    if (alpha > 0.f && font) {
+    // CHANGE: 2025-11-14 - Add comprehensive null check for font before dereferencing
+    if (alpha > 0.f && font && font->getInfo().family != "") {
         sf::RectangleShape popup(sf::Vector2f(120.f, 40.f));
         popup.setPosition(sf::Vector2f(x - 60.f, y - 50.f - time * 20.f));
         popup.setFillColor(sf::Color(255, 215, 0, static_cast<std::uint8_t>(alpha)));
