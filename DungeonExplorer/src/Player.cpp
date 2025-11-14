@@ -90,17 +90,22 @@ void Player::backtrack() {
     }
 }
 
-void Player::addItem(const Item& item) {
-    inventory.append(item);  // LinkedList: Add to inventory
-    std::cout << "[Player] Added item: " << item.name << " (value: " << item.value << ")" << std::endl;
+// CHANGE: 2025-11-14 - Unified to use ItemNew only
+void Player::addItem(const ItemNew& item) {
+    inventoryNew.append(item);  // LinkedList: Add to inventory
+    std::cout << "[Player] Added item: " << item.name << " (rarity: " << item.getRarityName() << ", value: " << item.value << ")" << std::endl;
 }
 
-bool Player::removeItem(const Item& item) {
-    bool removed = inventory.remove(item);
-    if (removed) {
-        std::cout << "[Player] Removed item: " << item.name << std::endl;
-    }
-    return removed;
+// DEPRECATED: Old addItemNew function - now uses unified addItem
+void Player::addItemNew(const ItemNew& item) {
+    addItem(item);  // Delegate to unified interface
+}
+
+// DEPRECATED: Old remove Item function - no longer used
+bool Player::removeItem(const ItemNew& item) {
+    // This was part of the old Item system, now handled by ItemNew system
+    std::cout << "[Deprecated] removeItem() called - old Item system" << std::endl;
+    return false;
 }
 
 int Player::attackEnemy() {
@@ -143,8 +148,15 @@ void Player::heal(int amount) {
 }
 
 bool Player::usePotion() {
-    // Check if player has a potion
-    if (!hasItem("Potion")) {
+    // CHANGE: 2025-11-14 - Check for potion in ItemNew system
+    bool hasPotion = false;
+    inventoryNew.traverse([&](const ItemNew& item) {
+        if (item.type == "consumable" && item.action.kind == "heal") {
+            hasPotion = true;
+        }
+    });
+    
+    if (!hasPotion) {
         std::cout << "[Player] No potions in inventory!" << std::endl;
         return false;
     }
@@ -155,21 +167,30 @@ bool Player::usePotion() {
         return false;
     }
     
-    // Remove potion from inventory
-    Item potion("Potion", "consumable", 0, 50);
-    if (removeItem(potion)) {
-        heal(50);
-        std::cout << "[Player] Used Potion! (+50 HP)" << std::endl;
-        return true;
-    }
+    // Find and use first healing potion - we need a mutable version
+    bool used = false;
+    // Since traverse is const, we need to manually find and remove
+    inventoryNew.traverse([&](const ItemNew& item) {
+        if (!used && item.type == "consumable" && item.action.kind == "heal") {
+            int healAmount = 50;  // Default heal amount
+            if (item.action.params.contains("amount")) {
+                healAmount = item.action.params["amount"].get<int>();
+            }
+            heal(healAmount);
+            std::cout << "[Player] Used " << item.name << "! (+" << healAmount << " HP)" << std::endl;
+            removeItemNew(item.id);
+            used = true;
+        }
+    });
     
-    return false;
+    return used;
 }
 
+// CHANGE: 2025-11-14 - Unified hasItem to work with ItemNew
 bool Player::hasItem(const std::string& itemName) const {
     bool found = false;
-    inventory.traverse([&](const Item& item) {
-        if (item.name == itemName) {
+    inventoryNew.traverse([&](const ItemNew& item) {
+        if (item.name == itemName || item.id == itemName) {
             found = true;
         }
     });
@@ -306,12 +327,6 @@ bool Player::spendGold(int amount) {
     }
     std::cout << "[Player] Insufficient gold! Need " << amount << ", have " << gold << std::endl;
     return false;
-}
-
-// CHANGE: 2025-11-11 - New item system with ItemNew and useItem functionality
-void Player::addItemNew(const ItemNew& item) {
-    inventoryNew.insert(item);  // Use insert instead of addFront
-    std::cout << "[Player] Added " << item.name << " to inventory (new system)" << std::endl;
 }
 
 bool Player::removeItemNew(const std::string& itemId) {

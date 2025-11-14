@@ -57,8 +57,9 @@ private:
     // Note: sf::Sprite removed - SFML 3.x requires texture, using shapes instead
     
     Stack<Position> pathHistory;  // For backtracking
-    LinkedList<Item> inventory;   // For items (old format - backwards compatibility)
-    LinkedList<ItemNew> inventoryNew;  // New item system with actions
+    // DEPRECATION: 2025-11-14 - Old Item system replaced by ItemNew
+    // LinkedList<Item> inventory;   // DEPRECATED - Use inventoryNew instead
+    LinkedList<ItemNew> inventoryNew;  // Primary item system with actions and effects
     
     // Equipment slots for equipped items
     ItemNew* equippedWeapon;
@@ -81,15 +82,19 @@ public:
     int attackEnemy();  // Returns damage dealt
     void takeDamage(int damage);
     
-    void addItem(const Item& item);
-    bool removeItem(const Item& item);
-    bool hasItem(const std::string& itemName) const;
-    const LinkedList<Item>& getInventory() const { return inventory; }
+    // DEPRECATED: 2025-11-14 - Old Item system replaced
+    // void addItem(const Item& item);
+    // bool removeItem(const Item& item);
+    // bool hasItem(const std::string& itemName) const;
+    // const LinkedList<Item>& getInventory() const;
     
-    // New item system
+    // Primary inventory system (ItemNew)
+    void addItem(const ItemNew& item);  // Unified interface
     void addItemNew(const ItemNew& item);
+    bool removeItem(const ItemNew& item);  // DEPRECATED: Old Item version - now handles ItemNew
     bool removeItemNew(const std::string& itemId);
     bool useItem(const std::string& itemId);  // Use item by ID, returns true if successful
+    bool hasItem(const std::string& itemName) const;  // Check if player has item (now uses ItemNew)
     const LinkedList<ItemNew>& getInventoryNew() const { return inventoryNew; }
     
     void heal(int amount);

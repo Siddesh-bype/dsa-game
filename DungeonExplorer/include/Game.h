@@ -98,8 +98,9 @@ private:
     void spawnLootAt(const sf::Vector2i& tilePos, const ItemNew& item);  // Spawn loot on ground
     void pickupLoot();  // Pick up loot when E pressed
     void updateLoots(float deltaTime);  // Update loot animations
-    void tryOpenDoor();  // Open door when E pressed adjacent
-    void checkRoomClearDoors();  // Auto-open doors when room cleared
+    // CHANGE: 2025-11-14 - Door functions integrated into E key handler (kept for backwards compatibility)
+    void tryOpenDoor();  // DEPRECATED: Now integrated into E key handler
+    void checkRoomClearDoors();  // DEPRECATED: Now integrated into moveEnemiesWithBFS
     
     // ✨ Combat effect system
     void addCombatEffect(const std::string& effectType, float x, float y, float duration = 0.3f);

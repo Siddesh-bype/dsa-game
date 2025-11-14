@@ -107,12 +107,11 @@ void Game::initialize() {
     
     // Demonstrate Loot System (Heap)
     std::cout << "\n[Game] Creating Loot System (Max Heap)..." << std::endl;
-    Heap<Item, std::greater<int>> lootHeap;  // Max heap by value
-    
-    // Add some loot
-    player->addItem(Item("dagger_rusty", "Rusty Dagger", "weapon", 5, 10, 0));
-    player->addItem(Item("coin_gold", "Gold Coin", "treasure", 0, 100, 0));
-    player->addItem(Item("ring_silver", "Silver Ring", "treasure", 0, 75, 0));
+    // CHANGE: 2025-11-14 - Use ItemNew system instead of old Item
+    // Add some starting loot
+    player->addItem(ItemNew("dagger_rusty", "Rusty Dagger", "weapon", 1, 10));
+    player->addItem(ItemNew("coin_gold", "Gold Coin", "treasure", 1, 100));
+    player->addItem(ItemNew("ring_silver", "Silver Ring", "treasure", 1, 75));
     
     // Initialize UI
     uiManager->initialize();
@@ -267,22 +266,24 @@ void Game::handleInput(const sf::Event& event) {
                     
                     // Try to unlock skills in order: Power Strike (2), Whirlwind (3), Flame Wave (4), Shadow Step (5)
                     auto root = skillTree->getRoot();
+                    // CHANGE: 2025-11-14 - Add bounds checking to prevent crashes on malformed trees
                     if (root && root->left && tryUnlock(root->left, 2)) {
                         std::cout << "[SkillTree] Power Strike unlocked! Press O again for more skills!" << std::endl;
                     } 
-                    // Try to unlock whirlwind
+                    // Try to unlock whirlwind (depth 2)
                     else if (root && root->left && root->left->left && tryUnlock(root->left->left, 3)) {
                         std::cout << "[SkillTree] Whirlwind unlocked! Press O again for more skills!" << std::endl;
                     }
-                    // Try to unlock flame wave
-                    else if (root && root->left && root->left->left && root->left->left->left && tryUnlock(root->left->left->left, 4)) {
+                    // Try to unlock flame wave (depth 3) - with bounds check
+                    else if (root && root->left && root->left->left && 
+                             root->left->left->left && tryUnlock(root->left->left->left, 4)) {
                         std::cout << "[SkillTree] Flame Wave unlocked! Press O again for more skills!" << std::endl;
                     }
-                    // Try right branch - shadow step
+                    // Try right branch - shadow step (depth 2) - with bounds check
                     else if (root && root->right && root->right->right && tryUnlock(root->right->right, 5)) {
                         std::cout << "[SkillTree] Shadow Step unlocked! Press O again for more skills!" << std::endl;
                     }
-                    // Try other right branch skills
+                    // Try other right branch skills (depth 1)
                     else if (root && root->right && tryUnlock(root->right, 0)) {  // Passive skills
                         std::cout << "[SkillTree] Mana Surge unlocked (passive)! Press O again!" << std::endl;
                     }
@@ -474,6 +475,7 @@ void Game::handleInput(const sf::Event& event) {
                         sf::Color(0, 255, 255));
                 }
                 std::cout << "[Debug] Bounding boxes " << (debugShowBoundingBoxes ? "ENABLED" : "DISABLED") << std::endl;
+                std::cout << "[Debug] F3 toggle - rendering will show collision boxes for player and enemies" << std::endl;
                 return;
             case sf::Keyboard::Key::F4:
                 // Toggle 1-bit retro mode
@@ -486,6 +488,7 @@ void Game::handleInput(const sf::Event& event) {
                         sf::Color(255, 255, 0));
                 }
                 std::cout << "[Debug] 1-bit retro mode " << (debugRetroMode ? "ENABLED" : "DISABLED") << std::endl;
+                std::cout << "[Debug] F4 toggle - rendering will switch to monochrome palettes" << std::endl;
                 return;
             case sf::Keyboard::Key::Escape:
                 // Close all panels or exit game over screen
@@ -790,6 +793,20 @@ void Game::activateSkill(int hotkey) {
 
 void Game::moveEnemiesWithBFS() {
     if (!enemyManager || !dungeon || !player) return;
+    
+    // CHANGE: 2025-11-14 - Check for room clear and open auto-clearing doors
+    if (enemyManager->isEmpty()) {
+        // All enemies defeated - open all clearable doors
+        for (auto& door : doors) {
+            if (door.openOnClear && !door.isOpen) {
+                door.isOpen = true;
+                if (dungeon) {
+                    dungeon->setTile(door.x, door.y, TileType::Floor);
+                }
+                std::cout << "[Door] Room cleared. Auto-opened door at (" << door.x << ", " << door.y << ")" << std::endl;
+            }
+        }
+    }
     
     Position playerPos = player->getPosition();
     auto& enemies = const_cast<std::vector<EnemyData>&>(enemyManager->getEnemies());
@@ -1237,6 +1254,7 @@ void Game::nextFloor() {
 }
 
 void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
+    // CHANGE: 2025-11-14 - Unified to use ItemNew system only (deprecated old Item)
     // Random chance for item drop (50% for regular enemies, 100% for bosses)
     int dropChance = rand() % 100;
     bool isBoss = (enemyName.find("Dragon") != std::string::npos || 
@@ -1245,73 +1263,81 @@ void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
                    enemyName.find("Necromancer") != std::string::npos);
     
     if (dropChance < 50 || isBoss) {
-        Item droppedItem;
+        ItemNew droppedItem;  // Use ItemNew instead of old Item
         
-        // Floor-based loot table
+        // Floor-based loot table (ItemNew system)
         if (currentFloor <= 2) {
             // Early floors: Basic items
             int itemRoll = rand() % 100;
             if (itemRoll < 40) {
-                droppedItem = Item("potion", "Health Potion", "consumable", 0, 50, 50);
+                droppedItem = ItemNew("potion", "Health Potion", "consumable", 1, 50,
+                    ItemAction("heal", {{{"amount", 50}}}));
             } else if (itemRoll < 60) {
-                droppedItem = Item("coin_gold", "Gold Coin", "treasure", 0, 100, 0);
+                droppedItem = ItemNew("coin_gold", "Gold Coin", "treasure", 1, 100);
             } else if (itemRoll < 80) {
-                droppedItem = Item("sword_iron", "Iron Sword", "weapon", 15, 50, 0);
+                droppedItem = ItemNew("sword_iron", "Iron Sword", "weapon", 2, 50);
             } else {
-                droppedItem = Item("shield_wood", "Wooden Shield", "armor", 0, 30, 0);
+                droppedItem = ItemNew("shield_wood", "Wooden Shield", "armor", 1, 30);
             }
         } else if (currentFloor <= 4) {
             // Mid floors: Better items
             int itemRoll = rand() % 100;
             if (itemRoll < 30) {
-                droppedItem = Item("potion_mega", "Mega Potion", "consumable", 0, 75, 150);
+                droppedItem = ItemNew("potion_mega", "Mega Potion", "consumable", 2, 75,
+                    ItemAction("heal", {{{"amount", 150}}}));
             } else if (itemRoll < 50) {
-                droppedItem = Item("potion_strength", "Strength Potion", "consumable", 0, 100, 0);
+                droppedItem = ItemNew("potion_strength", "Strength Potion", "consumable", 2, 100,
+                    ItemAction("buff", {{{"stat", "attack"}}, {{"amount", 5}}, {{"duration", 10.0}}}));
             } else if (itemRoll < 70) {
-                droppedItem = Item("sword_flame", "Flame Sword", "weapon", 25, 200, 0);
+                droppedItem = ItemNew("sword_flame", "Flame Sword", "weapon", 3, 200);
             } else if (itemRoll < 85) {
-                droppedItem = Item("shield_iron", "Iron Shield", "armor", 0, 80, 0);
+                droppedItem = ItemNew("shield_iron", "Iron Shield", "armor", 2, 80);
             } else {
-                droppedItem = Item("frost_bomb", "Frost Bomb", "attack", 40, 90, 0);
+                droppedItem = ItemNew("frost_bomb", "Frost Bomb", "consumable", 3, 90,
+                    ItemAction("attack", {{{"type", "frost"}}, {{"damage", 40}}}));
             }
         } else if (currentFloor <= 7) {
             // Deep floors: Advanced items
             int itemRoll = rand() % 100;
             if (itemRoll < 25) {
-                droppedItem = Item("elixir", "Elixir", "consumable", 0, 150, 100);
+                droppedItem = ItemNew("elixir", "Elixir", "consumable", 3, 150,
+                    ItemAction("heal", {{{"amount", 100}}}));
             } else if (itemRoll < 45) {
-                droppedItem = Item("fire_scroll", "Fire Scroll", "attack", 100, 150, 0);
+                droppedItem = ItemNew("fire_scroll", "Fire Scroll", "consumable", 4, 150,
+                    ItemAction("attack", {{{"type", "fire"}}, {{"damage", 100}}}));
             } else if (itemRoll < 65) {
-                droppedItem = Item("holy_water", "Holy Water", "attack", 80, 120, 0);
+                droppedItem = ItemNew("holy_water", "Holy Water", "consumable", 3, 120,
+                    ItemAction("attack", {{{"type", "holy"}}, {{"damage", 80}}}));
             } else if (itemRoll < 80) {
-                droppedItem = Item("amulet_wisdom", "Amulet of Wisdom", "accessory", 0, 120, 0);
+                droppedItem = ItemNew("amulet_wisdom", "Amulet of Wisdom", "accessory", 3, 120);
             } else {
-                droppedItem = Item("lightning_rod", "Lightning Rod", "attack", 120, 180, 0);
+                droppedItem = ItemNew("lightning_rod", "Lightning Rod", "weapon", 4, 180);
             }
         } else {
             // Legendary floors: Epic loot
             int itemRoll = rand() % 100;
             if (itemRoll < 20) {
-                droppedItem = Item("revive_scroll", "Scroll of Resurrection", "utility", 0, 500, 0);
+                droppedItem = ItemNew("revive_scroll", "Scroll of Resurrection", "utility", 5, 500);
             } else if (itemRoll < 40) {
-                droppedItem = Item("sword_legendary", "Legendary Blade", "weapon", 50, 1000, 0);
+                droppedItem = ItemNew("sword_legendary", "Legendary Blade", "weapon", 5, 1000);
             } else if (itemRoll < 60) {
-                droppedItem = Item("armor_dragon", "Dragon Scale Armor", "armor", 0, 800, 0);
+                droppedItem = ItemNew("armor_dragon", "Dragon Scale Armor", "armor", 5, 800);
             } else if (itemRoll < 80) {
-                droppedItem = Item("amulet_health", "Amulet of Vitality", "accessory", 0, 300, 0);
+                droppedItem = ItemNew("amulet_health", "Amulet of Vitality", "accessory", 4, 300);
             } else {
-                droppedItem = Item("gem_ruby", "Ruby Gem", "treasure", 0, 250, 0);
+                droppedItem = ItemNew("gem_ruby", "Ruby Gem", "treasure", 5, 250);
             }
         }
         
-        // Add item to player inventory
-        player->addItem(droppedItem);
+        // Spawn loot on ground instead of direct inventory
+        spawnLootAt(sf::Vector2i(x, y), droppedItem);
         
         // Show floating text
         uiManager->addFloatingText("+ " + droppedItem.name, 
             x * 32.0f, y * 32.0f - 20.0f, sf::Color(255, 215, 0));
         
-        std::cout << "[Loot] " << droppedItem.name << " dropped by " << enemyName << std::endl;
+        std::cout << "[Loot] " << droppedItem.name << " (" << droppedItem.getRarityName() 
+                  << ") dropped by " << enemyName << std::endl;
     }
 }
 
@@ -1365,6 +1391,11 @@ void Game::renderCombatEffects() {
         }
         
         sf::Texture* texture = AssetManager::getInstance().getTexture(textureKey);
+        // CHANGE: 2025-11-14 - Add null check for failed texture loading
+        if (!texture) {
+            std::cerr << "[Error] Failed to load combat effect texture: " << textureKey << std::endl;
+            continue;  // Skip rendering if texture failed to load
+        }
         if (texture) {
             sf::Sprite effectSprite(*texture);
             effectSprite.setPosition(sf::Vector2f(effect.x, effect.y));
@@ -1383,9 +1414,24 @@ void Game::renderCombatEffects() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 💎 LOOT SYSTEM - Item drops with rarity and pickup
-// CHANGE: 2025-11-10 - Complete item-drop system implementation
+// CHANGE: 2025-11-14 - Deprecated: Door opening logic now integrated into E key handler
+// These functions are preserved for reference but no longer called separately
 // ═══════════════════════════════════════════════════════════════════════
+
+void Game::tryOpenDoor() {
+    // DEPRECATED: Now integrated into handleInput E key handler with priority system
+    // Door opening is handled in the E key case with proper priority:
+    // 1. Pick up loot if nearby
+    // 2. Open door if adjacent and not already open
+    // 3. Descend stairs if adjacent
+    std::cout << "[Deprecated] tryOpenDoor() - use E key handler instead" << std::endl;
+}
+
+void Game::checkRoomClearDoors() {
+    // DEPRECATED: Now integrated into moveEnemiesWithBFS() when enemies are cleared
+    // When all enemies are defeated, auto-opening doors are opened automatically
+    std::cout << "[Deprecated] checkRoomClearDoors() - handled in moveEnemiesWithBFS()" << std::endl;
+}
 
 void Game::spawnLootAt(const sf::Vector2i& tilePos, const ItemNew& item) {
     Loot loot(item, tilePos);
@@ -1403,44 +1449,6 @@ void Game::spawnLootAt(const sf::Vector2i& tilePos, const ItemNew& item) {
 void Game::updateLoots(float deltaTime) {
     for (auto& loot : loots) {
         loot.update(deltaTime);
-    }
-}
-
-void Game::tryOpenDoor() {
-    if (!player || !dungeon) return;
-    
-    Position playerPos = player->getPosition();
-    
-    for (auto& door : doors) {
-        int dx = std::abs(door.x - playerPos.x);
-        int dy = std::abs(door.y - playerPos.y);
-        
-        if (dx <= 1 && dy <= 1 && !door.isOpen) {
-            if (door.requiresKey && !player->hasItem("dungeon_key")) {
-                std::cout << "[DEBUG] Door locked - requires key" << std::endl;
-                return;
-            }
-            
-            door.isOpen = true;
-            dungeon->setTile(door.x, door.y, TileType::Floor);
-            std::cout << "[DEBUG] Door opened at (" << door.x << ", " << door.y << ") by player" << std::endl;
-            return;
-        }
-    }
-}
-
-void Game::checkRoomClearDoors() {
-    if (!enemyManager || enemyManager->isEmpty()) {
-        // All enemies cleared - open all clearable doors
-        for (auto& door : doors) {
-            if (door.openOnClear && !door.isOpen) {
-                door.isOpen = true;
-                if (dungeon) {
-                    dungeon->setTile(door.x, door.y, TileType::Floor);
-                }
-                std::cout << "Room cleared. Door at (" << door.x << ", " << door.y << ") opened." << std::endl;
-            }
-        }
     }
 }
 

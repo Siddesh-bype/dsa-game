@@ -625,43 +625,13 @@ void UIManager::renderInventoryPanel(sf::RenderWindow& window, const Player& pla
             itemCount++;
         });
         
-        // Also display old inventory system (backwards compatibility)
+        // CHANGE: 2025-11-14 - Only display ItemNew system (old Item system removed)
+        // Old inventory system commented out - using unified ItemNew only
+        /* DEPRECATED: Old Item system
         player.getInventory().traverse([&](const Item& item) {
-            // Item background
-            sf::RectangleShape itemBg({320.f, 35.f});
-            itemBg.setPosition(sf::Vector2f(240, yOffset));
-            itemBg.setFillColor(sf::Color(40, 40, 55));
-            itemBg.setOutlineThickness(1.0f);
-            itemBg.setOutlineColor(sf::Color(60, 60, 80));
-            window.draw(itemBg);
-            
-            // Item name
-            sf::Text itemName(font);
-            itemName.setCharacterSize(14);
-            itemName.setString(item.name + " (old)");
-            itemName.setPosition(sf::Vector2f(250, yOffset + 5));
-            itemName.setFillColor(sf::Color(220, 220, 255));
-            window.draw(itemName);
-            
-            // Item type
-            sf::Text itemType(font);
-            itemType.setCharacterSize(10);
-            itemType.setString("[" + item.type + "]");
-            itemType.setPosition(sf::Vector2f(250, yOffset + 20));
-            itemType.setFillColor(sf::Color(150, 150, 180));
-            window.draw(itemType);
-            
-            // Item value
-            sf::Text itemValue(font);
-            itemValue.setCharacterSize(12);
-            itemValue.setString("$" + std::to_string(item.value));
-            itemValue.setPosition(sf::Vector2f(490, yOffset + 10));
-            itemValue.setFillColor(sf::Color(255, 215, 0));
-            window.draw(itemValue);
-            
-            yOffset += 40.f;
-            itemCount++;
+            // ... old rendering code ...
         });
+        */
         
         if (itemCount == 0) {
             sf::Text emptyText(font);
