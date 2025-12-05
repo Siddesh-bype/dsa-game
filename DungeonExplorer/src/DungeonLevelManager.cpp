@@ -1,16 +1,15 @@
 // CHANGE: 2025-11-10 — 10-Floor Dungeon Expansion System Implementation
 // Manages progressive dungeon generation with scaling difficulty and themed floors
+// CHANGE: 2025-12-04 - Refactored with GameUtils for code deduplication
 
 #include "DungeonLevelManager.h"
 #include "Dungeon.h"
 #include "Enemy.h"
 #include "Player.h"
+#include "GameUtils.h"
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
-#include <cmath>
-#include <random>
-#include <ctime>
 
 // Enemy data cache
 static nlohmann::json enemyDatabase;
@@ -33,137 +32,65 @@ DungeonLevelManager::DungeonLevelManager()
 }
 
 bool DungeonLevelManager::loadLevels(const std::string& jsonPath) {
-    std::cout << "[DungeonLevelManager] Loading level configuration from " << jsonPath << std::endl;
+    std::cout << "[DungeonLevelManager] Loading level configuration..." << std::endl;
     
-    // For now, use hardcoded data (JSON parsing can be added with nlohmann/json library)
-    // This matches the levels.json structure
     levels.clear();
     
-    // Floor 1: Cavern Entrance
-    LevelData floor1;
-    floor1.floor = 1;
-    floor1.theme = "Cavern Entrance";
-    floor1.description = "A dark cave entrance filled with weak creatures";
-    floor1.roomCount = 10;
-    floor1.enemyTypes = {"Goblin Scout", "Slime"};
-    floor1.enemyCount = 3;
-    floor1.difficulty = 1.0f;
-    floor1.lightColor = sf::Color(255, 220, 180, 200);
-    floor1.ambientLevel = 0.5f;
-    floor1.boss = false;
-    levels.push_back(floor1);
+    // ═══════════════════════════════════════════════════════════════════════
+    // LEVEL DATA - Using factory pattern for cleaner code
+    // ═══════════════════════════════════════════════════════════════════════
     
-    // Floor 2: Ruined Halls
-    LevelData floor2;
-    floor2.floor = 2;
-    floor2.theme = "Ruined Halls";
-    floor2.roomCount = 12;
-    floor2.enemyTypes = {"Orc Grunt", "Skeleton Warrior"};
-    floor2.enemyCount = 4;
-    floor2.difficulty = 1.3f;
-    floor2.lightColor = sf::Color(230, 210, 180, 200);
-    floor2.ambientLevel = 0.45f;
-    levels.push_back(floor2);
+    levels.push_back(createLevel(1, "Cavern Entrance", 
+        "A dark cave entrance filled with weak creatures",
+        10, {"Goblin", "Slime"}, 3, 1.0f,
+        sf::Color(255, 220, 180, 200), 0.5f));
     
-    // Floor 3: Undercity
-    LevelData floor3;
-    floor3.floor = 3;
-    floor3.theme = "Undercity";
-    floor3.roomCount = 14;
-    floor3.enemyTypes = {"Cave Bat", "Skeleton Mage", "Orc Warrior"};
-    floor3.enemyCount = 5;
-    floor3.difficulty = 1.6f;
-    floor3.lightColor = sf::Color(180, 200, 220, 180);
-    floor3.ambientLevel = 0.4f;
-    levels.push_back(floor3);
+    levels.push_back(createLevel(2, "Ruined Halls",
+        "Ancient corridors filled with undead",
+        12, {"Orc", "Skeleton"}, 4, 1.3f,
+        sf::Color(230, 210, 180, 200), 0.45f));
     
-    // Floor 4: Shadow Temple
-    LevelData floor4;
-    floor4.floor = 4;
-    floor4.theme = "Shadow Temple";
-    floor4.roomCount = 16;
-    floor4.enemyTypes = {"Shadow Wraith", "Shadow Knight", "Dark Cultist"};
-    floor4.enemyCount = 6;
-    floor4.difficulty = 2.0f;
-    floor4.lightColor = sf::Color(200, 150, 150, 160);
-    floor4.ambientLevel = 0.35f;
-    levels.push_back(floor4);
+    levels.push_back(createLevel(3, "Undercity",
+        "A forgotten underground city",
+        14, {"Goblin", "Skeleton", "Orc"}, 5, 1.6f,
+        sf::Color(180, 200, 220, 180), 0.4f));
     
-    // Floor 5: Abyss Core (MINI BOSS)
-    LevelData floor5;
-    floor5.floor = 5;
-    floor5.theme = "Abyss Core";
-    floor5.roomCount = 8;
-    floor5.enemyTypes = {"Abyss Knight"};
-    floor5.enemyCount = 1;
-    floor5.difficulty = 2.5f;
-    floor5.lightColor = sf::Color(255, 100, 100, 180);
-    floor5.ambientLevel = 0.3f;
-    floor5.boss = true;
-    floor5.bossName = "Abyss Knight";
-    levels.push_back(floor5);
+    levels.push_back(createLevel(4, "Shadow Temple",
+        "A temple consumed by darkness",
+        16, {"Wraith", "Skeleton", "Dark Mage"}, 6, 2.0f,
+        sf::Color(200, 150, 150, 160), 0.35f));
     
-    // Floor 6: Crystal Mines
-    LevelData floor6;
-    floor6.floor = 6;
-    floor6.theme = "Crystal Mines";
-    floor6.roomCount = 18;
-    floor6.enemyTypes = {"Crystal Golem", "Cave Bat", "Miner Wraith"};
-    floor6.enemyCount = 7;
-    floor6.difficulty = 2.8f;
-    floor6.lightColor = sf::Color(150, 200, 255, 200);
-    floor6.ambientLevel = 0.4f;
-    levels.push_back(floor6);
+    levels.push_back(createLevel(5, "Abyss Core",
+        "The heart of the abyss - BOSS FLOOR",
+        8, {"Dragon"}, 1, 2.5f,
+        sf::Color(255, 100, 100, 180), 0.3f,
+        true, "Abyss Dragon"));
     
-    // Floor 7: Forgotten Fortress
-    LevelData floor7;
-    floor7.floor = 7;
-    floor7.theme = "Forgotten Fortress";
-    floor7.roomCount = 20;
-    floor7.enemyTypes = {"Armored Orc", "Fortress Specter", "War Hound"};
-    floor7.enemyCount = 8;
-    floor7.difficulty = 3.2f;
-    floor7.lightColor = sf::Color(200, 200, 200, 160);
-    floor7.ambientLevel = 0.35f;
-    levels.push_back(floor7);
+    levels.push_back(createLevel(6, "Crystal Mines",
+        "Glittering caverns filled with golems",
+        18, {"Gargoyle", "Goblin", "Wraith"}, 7, 2.8f,
+        sf::Color(150, 200, 255, 200), 0.4f));
     
-    // Floor 8: Lava Catacombs
-    LevelData floor8;
-    floor8.floor = 8;
-    floor8.theme = "Lava Catacombs";
-    floor8.roomCount = 22;
-    floor8.enemyTypes = {"Fire Spirit", "Flame Knight", "Lava Elemental"};
-    floor8.enemyCount = 9;
-    floor8.difficulty = 3.8f;
-    floor8.lightColor = sf::Color(255, 180, 120, 200);
-    floor8.ambientLevel = 0.45f;
-    levels.push_back(floor8);
+    levels.push_back(createLevel(7, "Forgotten Fortress",
+        "An ancient military stronghold",
+        20, {"Orc", "Wraith", "Goblin"}, 8, 3.2f,
+        sf::Color(200, 200, 200, 160), 0.35f));
     
-    // Floor 9: Obsidian Keep
-    LevelData floor9;
-    floor9.floor = 9;
-    floor9.theme = "Obsidian Keep";
-    floor9.roomCount = 24;
-    floor9.enemyTypes = {"Dark Mage", "Warlord", "Death Knight"};
-    floor9.enemyCount = 10;
-    floor9.difficulty = 4.3f;
-    floor9.lightColor = sf::Color(120, 80, 80, 180);
-    floor9.ambientLevel = 0.25f;
-    levels.push_back(floor9);
+    levels.push_back(createLevel(8, "Lava Catacombs",
+        "Burning halls of molten rock",
+        22, {"Demon", "Demon", "Demon"}, 9, 3.8f,
+        sf::Color(255, 180, 120, 200), 0.45f));
     
-    // Floor 10: The Nexus (FINAL BOSS)
-    LevelData floor10;
-    floor10.floor = 10;
-    floor10.theme = "The Nexus";
-    floor10.roomCount = 12;
-    floor10.enemyTypes = {"Eternal Shade"};
-    floor10.enemyCount = 1;
-    floor10.difficulty = 5.0f;
-    floor10.lightColor = sf::Color(255, 255, 255, 150);
-    floor10.ambientLevel = 0.2f;
-    floor10.boss = true;
-    floor10.bossName = "Eternal Shade";
-    levels.push_back(floor10);
+    levels.push_back(createLevel(9, "Obsidian Keep",
+        "A fortress of volcanic glass",
+        24, {"Dark Mage", "Orc", "Skeleton"}, 10, 4.3f,
+        sf::Color(120, 80, 80, 180), 0.25f));
+    
+    levels.push_back(createLevel(10, "The Nexus",
+        "The final confrontation - FINAL BOSS",
+        12, {"Dragon"}, 1, 5.0f,
+        sf::Color(255, 255, 255, 150), 0.2f,
+        true, "Eternal Dragon"));
     
     maxFloors = levels.size();
     levelsLoaded = true;
@@ -177,14 +104,42 @@ void DungeonLevelManager::initialize() {
     std::cout << "[DungeonLevelManager] Initialized at Floor 1" << std::endl;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS - Reduce code duplication
+// ═══════════════════════════════════════════════════════════════════════
+
+LevelData DungeonLevelManager::createLevel(int floor, const std::string& theme,
+                                          const std::string& desc, int rooms,
+                                          const std::vector<std::string>& enemies,
+                                          int enemyCount, float difficulty,
+                                          sf::Color light, float ambient,
+                                          bool isBoss,
+                                          const std::string& bossName) {
+    LevelData level;
+    level.floor = floor;
+    level.theme = theme;
+    level.description = desc;
+    level.roomCount = rooms;
+    level.enemyTypes = enemies;
+    level.enemyCount = enemyCount;
+    level.difficulty = difficulty;
+    level.lightColor = light;
+    level.ambientLevel = ambient;
+    level.boss = isBoss;
+    level.bossName = bossName;
+    return level;
+}
+
+int DungeonLevelManager::scaleValue(int baseValue, int floor, float scaleFactor) const {
+    return static_cast<int>(baseValue * std::pow(scaleFactor, floor - 1));
+}
+
 int DungeonLevelManager::calculateEnemyHP(int baseHP, int floor) const {
-    // Formula: HP = baseHP * (1.15^floor)
-    return static_cast<int>(baseHP * std::pow(1.15, floor - 1));
+    return scaleValue(baseHP, floor, HP_SCALE_FACTOR);
 }
 
 int DungeonLevelManager::calculateEnemyAttack(int baseAttack, int floor) const {
-    // Formula: Attack = baseAttack * (1.12^floor)
-    return static_cast<int>(baseAttack * std::pow(1.12, floor - 1));
+    return scaleValue(baseAttack, floor, ATTACK_SCALE_FACTOR);
 }
 
 int DungeonLevelManager::calculateXPReward(int baseXP, int floor) const {

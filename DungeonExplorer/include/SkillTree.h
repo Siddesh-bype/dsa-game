@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <cmath>
 #include "DataStructures/Tree.h"
 
 struct Skill {
@@ -48,6 +49,65 @@ private:
     std::shared_ptr<BinaryTree<Skill>::Node> root;
     
     int availablePoints;
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SYNERGY BONUS SYSTEM - Combined skill effects
+    // ═══════════════════════════════════════════════════════════════════════
+    struct Synergy {
+        std::string skill1, skill2;
+        std::string bonusName;
+        float bonusValue;
+    };
+    std::vector<Synergy> synergies;
+    
+    // Animation state for unlock effects
+    struct UnlockAnimation {
+        std::string skillId;
+        float timer;
+        float maxTime;
+    };
+    std::vector<UnlockAnimation> unlockAnimations;
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SKILL TREE CONFIGURATION CONSTANTS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Tree layout parameters
+    static constexpr float TREE_START_X = 400.0f;
+    static constexpr float TREE_START_Y = 150.0f;
+    static constexpr float LEVEL_HEIGHT = 100.0f;
+    static constexpr float BASE_WIDTH = 300.0f;
+    
+    // Node rendering
+    static constexpr float NODE_RADIUS = 25.0f;
+    static constexpr float OUTLINE_NORMAL = 2.0f;
+    static constexpr float OUTLINE_HOVER = 3.0f;
+    static constexpr int ICON_FONT_SIZE = 16;
+    static constexpr float ICON_Y_OFFSET = 5.0f;
+    
+    // Tooltip
+    static constexpr float TOOLTIP_WIDTH = 220.0f;
+    static constexpr float TOOLTIP_HEIGHT = 100.0f;
+    static constexpr float TOOLTIP_OFFSET = 15.0f;
+    static constexpr float TOOLTIP_PADDING = 20.0f;
+    static constexpr int TOOLTIP_FONT_SIZE = 12;
+    static constexpr int TOOLTIP_BG_ALPHA = 230;
+    
+    // Colors
+    static constexpr int LOCKED_GRAY = 50;
+    static constexpr int LINE_GRAY = 100;
+    static constexpr int UNLOCKED_GREEN = 200;
+    static constexpr int UNLOCKABLE_YELLOW = 200;
+    
+    // Starting skill points
+    static constexpr int INITIAL_SKILL_POINTS = 5;
+    
+    // Helper: calculate distance between two points
+    static float pointDistance(float x1, float y1, float x2, float y2) {
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        return std::sqrt(dx * dx + dy * dy);
+    }
 
 public:
     SkillTree();
@@ -72,6 +132,14 @@ public:
     
     int getAvailablePoints() const { return availablePoints; }
     
-    void render(sf::RenderWindow& window, sf::Font& font);
+    void render(sf::RenderWindow& window, sf::Font& font, sf::Vector2f mousePos);
+    bool tryUnlockAt(sf::Vector2f mousePos);
     void displayTree();
+    
+    // 🎮 Synergy and Animation systems
+    void initializeSynergies();
+    float getSynergyBonus(const std::string& bonusType) const;
+    void updateAnimations(float deltaTime);
+    int getUnlockedSkillCount() const;
+    float getTotalPassiveBonus(const std::string& stat) const;
 };

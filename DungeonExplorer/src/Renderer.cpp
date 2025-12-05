@@ -2,8 +2,8 @@
 #include "Player.h"
 #include "Dungeon.h"
 #include "Enemy.h"
+#include "GameUtils.h"
 #include <iostream>
-#include <cmath>
 
 Renderer::Renderer(sf::RenderWindow* window, float tileSize)
     : window(window), tileSize(tileSize), 
@@ -151,7 +151,7 @@ void Renderer::applyLighting(const Player& player) {
         outerGlow[0].color = sf::Color(255, 240, 200, 15);  // Dim center
         
         for (int i = 0; i <= segments; ++i) {
-            float angle = (i / static_cast<float>(segments)) * 2.0f * 3.14159f;
+            float angle = (i / static_cast<float>(segments)) * TWO_PI;
             float x = screenPos.x + std::cos(angle) * outerRadius;
             float y = screenPos.y + std::sin(angle) * outerRadius;
             
@@ -159,5 +159,31 @@ void Renderer::applyLighting(const Player& player) {
             outerGlow[i + 1].color = sf::Color(0, 0, 0, static_cast<uint8_t>(255 * (1.0f - ambientLevel)));
         }
         window->draw(outerGlow, sf::BlendAdd);
+    }
+}
+// ========== MULTI-LIGHT MANAGEMENT ==========
+
+void Renderer::clearLights() {
+    lights.clear();
+}
+
+void Renderer::addLight(const Light& light) {
+    if (lights.size() < MAX_LIGHTS) {
+        lights.push_back(light);
+    }
+}
+
+void Renderer::updateLights(float totalTime) {
+    for (auto& light : lights) {
+        if (light.flickerSpeed > 0.0f) {
+            float seed = light.position.x * FLICKER_SEED_X + light.position.y * FLICKER_SEED_Y;
+            float flicker = std::sin(totalTime * light.flickerSpeed + seed) * FLICKER_AMP_1 + 
+                           std::sin(totalTime * light.flickerSpeed * FLICKER_FREQ_2 + seed) * FLICKER_AMP_2 + 
+                           std::sin(totalTime * light.flickerSpeed * FLICKER_FREQ_3 + seed) * FLICKER_AMP_3;
+            flicker = (flicker + FLICKER_OFFSET) / FLICKER_DIVISOR;
+            float flickerAmount = flicker * light.flickerRange;
+            light.intensity = light.baseIntensity * (1.0f - flickerAmount);
+            light.intensity = std::max(0.0f, std::min(1.0f, light.intensity));
+        }
     }
 }

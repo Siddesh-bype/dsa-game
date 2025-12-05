@@ -1,0 +1,81 @@
+{
+    "enemies": {
+        "goblin": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprGoblin1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprGoblin2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprGoblin3.png"
+            ],
+            "animation_speed": 0.2
+        },
+        "skeleton": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprSkeleton1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprSkeleton2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprSkeleton3.png"
+            ],
+            "animation_speed": 0.2
+        },
+        "minotaur": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprMinotaur1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprMinotaur2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprMinotaur3.png"
+            ],
+            "animation_speed": 0.3
+        },
+        "ghost": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprGhost1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprGhost2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprGhost3.png"
+            ],
+            "animation_speed": 0.15
+        },
+        "orc_archer": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprOrcArcher1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprOrcArcher2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprOrcArcher3.png"
+            ],
+            "animation_speed": 0.2
+        },
+        "lizard_monk": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprLizardMonk1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprLizardMonk2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprLizardMonk3.png"
+            ],
+            "animation_speed": 0.2
+        },
+        "batilisk": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprBatilisk1.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprBatilisk2.png",
+                "assets/DebtsInTheDepthsAssets/Characters/sprBatilisk3.png"
+            ],
+            "animation_speed": 0.15
+        },
+        "dragon": {
+            "sprites": [
+                "assets/DebtsInTheDepthsAssets/Characters/sprDragon.png"
+            ],
+            "animation_speed": 0.3
+        }
+    },
+    "effects": {
+        "attack_swing": "assets/DebtsInTheDepthsAssets/Effects/sprAttackSwing.png",
+        "attack_large": "assets/DebtsInTheDepthsAssets/Effects/sprAttackLarge.png",
+        "explosion": "assets/DebtsInTheDepthsAssets/Effects/sprExplosion.png",
+        "fire_explosion": "assets/DebtsInTheDepthsAssets/Effects/sprFireExplosion.png",
+        "magic_explosion": "assets/DebtsInTheDepthsAssets/Effects/sprMagicExplosion.png",
+        "arrow": "assets/DebtsInTheDepthsAssets/Effects/sprArrow.png",
+        "firebolt": "assets/DebtsInTheDepthsAssets/Effects/sprFirebolt.png",
+        "magic_bolt": "assets/DebtsInTheDepthsAssets/Effects/sprMagicBolt.png",
+        "heal_particle": "assets/DebtsInTheDepthsAssets/Effects/sprHealParticle.png",
+        "sparkle": "assets/DebtsInTheDepthsAssets/Effects/sprSparkle.png"
+    },
+    "player": {
+        "wizard": "assets/DebtsInTheDepthsAssets/Characters/sprWizard.png"
+    }
+}

@@ -42,6 +42,26 @@ private:
     int maxFloors;
     bool levelsLoaded;
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // SCALING CONSTANTS - Difficulty progression tuning
+    // ═══════════════════════════════════════════════════════════════════════
+    static constexpr float HP_SCALE_FACTOR = 1.15f;      // 15% HP increase per floor
+    static constexpr float ATTACK_SCALE_FACTOR = 1.12f;  // 12% attack increase per floor
+    static constexpr float XP_SCALE_FACTOR = 1.20f;      // 20% XP reward increase per floor
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS - Reduce code duplication
+    // ═══════════════════════════════════════════════════════════════════════
+    LevelData createLevel(int floor, const std::string& theme,
+                         const std::string& desc, int rooms,
+                         const std::vector<std::string>& enemies,
+                         int enemyCount, float difficulty,
+                         sf::Color light, float ambient,
+                         bool isBoss = false,
+                         const std::string& bossName = "");
+    
+    int scaleValue(int baseValue, int floor, float scaleFactor) const;
+    
     // Difficulty scaling formulas
     int calculateEnemyHP(int baseHP, int floor) const;
     int calculateEnemyAttack(int baseAttack, int floor) const;

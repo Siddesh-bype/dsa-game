@@ -1,5 +1,5 @@
 #include "DSAVisualizer.h"
-#include <cmath>
+#include "GameUtils.h"
 #include <cstdint>
 #include <array>
 

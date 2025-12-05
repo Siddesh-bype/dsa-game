@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <algorithm>
+#include <utility>
 
 template<typename T, typename Compare = std::less<T>>
 class Heap {
@@ -46,13 +47,55 @@ private:
     }
 
 public:
+    // Constructors
     Heap() = default;
     
+    // Range constructor
+    template<typename Iterator>
+    Heap(Iterator begin, Iterator end) {
+        data.assign(begin, end);
+        // Build heap from bottom up
+        for (int i = static_cast<int>(data.size() / 2) - 1; i >= 0; --i) {
+            heapifyDown(static_cast<size_t>(i));
+        }
+    }
+    
+    // Move constructor
+    Heap(Heap&& other) noexcept 
+        : data(std::move(other.data)), comp(std::move(other.comp)) {}
+    
+    // Move assignment operator
+    Heap& operator=(Heap&& other) noexcept {
+        if (this != &other) {
+            data = std::move(other.data);
+            comp = std::move(other.comp);
+        }
+        return *this;
+    }
+    
+    // Copy constructor and assignment (default is fine)
+    Heap(const Heap&) = default;
+    Heap& operator=(const Heap&) = default;
+    
+    // Insert operations
     void insert(const T& value) {
         data.push_back(value);
         heapifyUp(data.size() - 1);
         // CHANGE: 2025-11-14 - Reduce console spam during gameplay loops
         // std::cout << "[DSA-Heap] Inserted element. Heap size: " << data.size() << std::endl;
+    }
+    
+    // Move insert
+    void insert(T&& value) {
+        data.push_back(std::move(value));
+        heapifyUp(data.size() - 1);
+    }
+    
+    // Emplace - construct in place
+    template<typename... Args>
+    void emplace(Args&&... args) {
+        data.emplace_back(std::forward<Args>(args)...);
+        heapifyUp(data.size() - 1);
     }
     
     T extractTop() {
@@ -86,6 +129,25 @@ public:
     
     size_t size() const {
         return data.size();
+    }
+    
+    // Dynamic array features
+    void reserve(size_t capacity) {
+        data.reserve(capacity);
+    }
+    
+    size_t capacity() const {
+        return data.capacity();
+    }
+    
+    void shrink_to_fit() {
+        data.shrink_to_fit();
+    }
+    
+    // Swap
+    void swap(Heap& other) noexcept {
+        data.swap(other.data);
+        std::swap(comp, other.comp);
     }
     
     void clear() {

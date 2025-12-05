@@ -348,7 +348,19 @@
       "description": "Increases max HP by 50 and grants 2 HP regen per turn",
       "action": { "kind": "equip", "maxHPBonus": 50, "regenBonus": 2 },
       "icon": "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/UI/sprHeart.png"
+    },
+    {
+      "id": "dungeon_key",
+      "name": "Dungeon Key",
+      "type": "quest",
+      "rarity": 3,
+      "damage": 0,
+      "value": 0,
+      "description": "A mysterious key that opens locked dungeon doors",
+      "action": { "kind": "key" },
+      "icon": "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprGoldPile.png"
     }
   ]
+
 }
 

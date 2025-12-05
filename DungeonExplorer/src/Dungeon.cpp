@@ -2,12 +2,12 @@
 // - Added stairs position tracking
 // - Place stairs in furthest room from entrance using Dijkstra
 // - Added debug logging for stairs placement
+// CHANGE: 2025-12-04 - Refactored with GameUtils for code deduplication
 
 #include "Dungeon.h"
 #include "AssetManager.h"
+#include "GameUtils.h"
 #include <iostream>
-#include <random>
-#include <ctime>
 #include <queue>
 #include <map>
 
@@ -37,7 +37,7 @@ void Dungeon::generate(int numRooms) {
         int maxDistance = 0;
         
         for (const auto& [roomId, dist] : distances) {
-            if (dist > maxDistance && dist < 999999) {
+            if (dist > maxDistance && dist < INFINITE_DISTANCE) {
                 maxDistance = dist;
                 furthestRoom = roomId;
             }
@@ -50,21 +50,12 @@ void Dungeon::generate(int numRooms) {
                 int centerX = room.x + room.width / 2;
                 int centerY = room.y + room.height / 2;
                 
-                // Place 2x2 stairs block
+                // Place single stair tile
                 stairsX = centerX;
                 stairsY = centerY;
                 
-                // Place stairs tiles in a 2x2 pattern
-                for (int dy = 0; dy < 2; dy++) {
-                    for (int dx = 0; dx < 2; dx++) {
-                        int sx = centerX + dx;
-                        int sy = centerY + dy;
-                        
-                        // Ensure within room bounds
-                        if (sx < room.x + room.width && sy < room.y + room.height) {
-                            grid[sy][sx] = TileType::Exit;
-                        }
-                    }
+                if (grid[centerY][centerX] != TileType::Door) {
+                    grid[centerY][centerX] = TileType::Exit;
                 }
                 
                 // CHANGE: 2025-11-14 - Reduce debug spam from generation
@@ -74,30 +65,43 @@ void Dungeon::generate(int numRooms) {
         }
     }
     
-    // CHANGE: 2025-11-14 - Reduce debug spam
-    // std::cout << "[Dungeon] Generation complete!" << std::endl;
+    // OPTIMIZATION: Use Graph's isConnected() to validate dungeon
+    if (rooms.size() > 1) {
+        bool connected = roomGraph.isConnected();
+        std::cout << "[Dungeon] Graph connectivity check: " 
+                  << (connected ? "CONNECTED" : "DISCONNECTED") << std::endl;
+        
+        if (!connected) {
+            std::cerr << "[WARNING] Dungeon graph is not fully connected!" << std::endl;
+        }
+    }
+    
+    // 🎮 Generate decorative elements
+    generateDecorations();
+    
+    std::cout << "[Dungeon] Generation complete!" << std::endl;
 }
 
 void Dungeon::generateRooms(int numRooms) {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
     
     for (int i = 0; i < numRooms; i++) {
-        int x = 2 + (std::rand() % (GRID_WIDTH - 10));  // More margin
-        int y = 2 + (std::rand() % (GRID_HEIGHT - 10));
-        int w = 3 + (std::rand() % 4);
-        int h = 3 + (std::rand() % 4);
+        int x = RandomUtils::randomInt(ROOM_MARGIN, GRID_WIDTH - ROOM_SAFE_ZONE);
+        int y = RandomUtils::randomInt(ROOM_MARGIN, GRID_HEIGHT - ROOM_SAFE_ZONE);
+        int w = RandomUtils::randomInt(MIN_ROOM_SIZE, MIN_ROOM_SIZE + MAX_ROOM_SIZE_RANGE);
+        int h = RandomUtils::randomInt(MIN_ROOM_SIZE, MIN_ROOM_SIZE + MAX_ROOM_SIZE_RANGE);
         
         // Ensure room fits with proper bounds checking
         if (x + w >= GRID_WIDTH - 1) {
-            w = GRID_WIDTH - x - 2;
+            w = GRID_WIDTH - x - ROOM_MARGIN;
         }
         if (y + h >= GRID_HEIGHT - 1) {
-            h = GRID_HEIGHT - y - 2;
+            h = GRID_HEIGHT - y - ROOM_MARGIN;
         }
         
         // Ensure minimum room size
-        if (w < 3) w = 3;
-        if (h < 3) h = 3;
+        if (w < MIN_ROOM_SIZE) w = MIN_ROOM_SIZE;
+        if (h < MIN_ROOM_SIZE) h = MIN_ROOM_SIZE;
         
         TileType type = TileType::Floor;
         if (i == 0) type = TileType::Start;
@@ -132,14 +136,18 @@ void Dungeon::connectRooms() {
     // Add some random connections
     if (rooms.size() > 3) {
         for (size_t i = 0; i < rooms.size() / 2; i++) {
-            int r1 = std::rand() % rooms.size();
-            int r2 = std::rand() % rooms.size();
+            int r1 = RandomUtils::randomInt(0, static_cast<int>(rooms.size()) - 1);
+            int r2 = RandomUtils::randomInt(0, static_cast<int>(rooms.size()) - 1);
             if (r1 != r2) {
                 int weight = std::abs(rooms[r1].x - rooms[r2].x) + std::abs(rooms[r1].y - rooms[r2].y);
                 roomGraph.addBidirectionalEdge(rooms[r1].id, rooms[r2].id, weight);
             }
         }
     }
+    
+    // OPTIMIZATION: Display graph statistics
+    std::cout << "[Dungeon] Graph stats - Vertices: " << rooms.size() 
+              << ", Edges: " << roomGraph.edgeCount() << std::endl;
 }
 
 void Dungeon::fillGrid() {
@@ -172,35 +180,29 @@ void Dungeon::carveHorizontalCorridor(const Room& r1, const Room& r2) {
     int startX = std::min(x1, x2);
     int endX = std::max(x1, x2);
     
+
     for (int x = startX; x <= endX; x++) {
         if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-            if (grid[y][x] == TileType::Wall || grid[y][x] == TileType::Empty) {
+            // Only place a door if we are breaking a wall at a room boundary
+            bool isRoomBoundary = false;
+            int currentRoom = getRoomIdAt(x, y);
+            
+            // Check if we are entering/leaving r1
+            if ((x == r1.x && x > x2) || (x == r1.x + r1.width - 1 && x < x2)) {
+                isRoomBoundary = true;
+            }
+            // Check if we are entering/leaving r2
+            else if ((x == r2.x && x > x1) || (x == r2.x + r2.width - 1 && x < x1)) {
+                isRoomBoundary = true;
+            }
+
+            if (grid[y][x] == TileType::Wall && isRoomBoundary) {
+                grid[y][x] = TileType::Door;
+                bool requiresKey = (std::rand() % 100) < DOOR_KEY_CHANCE_PERCENT;
+                doors.push_back(DoorData(x, y, r1.id, r2.id, requiresKey, true));
+            } else if (grid[y][x] == TileType::Wall || grid[y][x] == TileType::Empty) {
                 grid[y][x] = TileType::Floor;
             }
-        }
-    }
-    
-    // CHANGE: 2025-11-11 - Place doors ONLY at room boundaries
-    // Check left side of r1
-    if (x1 < x2 && r1.x + r1.width == startX + 1) {
-        int doorX = r1.x + r1.width;
-        int doorY = r1.y + r1.height / 2;
-        if (doorX >= 0 && doorX < GRID_WIDTH && doorY >= 0 && doorY < GRID_HEIGHT) {
-            grid[doorY][doorX] = TileType::Door;
-            doors.push_back(DoorData(doorX, doorY, r1.id, r2.id, false, true));
-            // CHANGE: 2025-11-14 - Reduce debug spam
-            // std::cout << "[DEBUG] Door placed..." << std::endl;
-        }
-    }
-    
-    // Check left side of r2
-    if (x2 < x1 && r2.x + r2.width == startX + 1) {
-        int doorX = r2.x + r2.width;
-        int doorY = r2.y + r2.height / 2;
-        if (doorX >= 0 && doorX < GRID_WIDTH && doorY >= 0 && doorY < GRID_HEIGHT) {
-            grid[doorY][doorX] = TileType::Door;
-            doors.push_back(DoorData(doorX, doorY, r1.id, r2.id, false, true));
-            std::cout << "[DEBUG] Door placed at (" << doorX << ", " << doorY << ") between rooms " << r1.id << " and " << r2.id << std::endl;
         }
     }
 }
@@ -215,31 +217,25 @@ void Dungeon::carveVerticalCorridor(const Room& r1, const Room& r2) {
     
     for (int y = startY; y <= endY; y++) {
         if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-            if (grid[y][x] == TileType::Wall || grid[y][x] == TileType::Empty) {
+            // Only place a door if we are breaking a wall at a room boundary
+            bool isRoomBoundary = false;
+            
+            // Check if we are entering/leaving r1
+            if ((y == r1.y && y > y2) || (y == r1.y + r1.height - 1 && y < y2)) {
+                isRoomBoundary = true;
+            }
+            // Check if we are entering/leaving r2
+            else if ((y == r2.y && y > y1) || (y == r2.y + r2.height - 1 && y < y1)) {
+                isRoomBoundary = true;
+            }
+
+            if (grid[y][x] == TileType::Wall && isRoomBoundary) {
+                grid[y][x] = TileType::Door;
+                bool requiresKey = (std::rand() % 100) < DOOR_KEY_CHANCE_PERCENT;
+                doors.push_back(DoorData(x, y, r1.id, r2.id, requiresKey, true));
+            } else if (grid[y][x] == TileType::Wall || grid[y][x] == TileType::Empty) {
                 grid[y][x] = TileType::Floor;
             }
-        }
-    }
-    
-    // CHANGE: 2025-11-11 - Place doors ONLY at room boundaries
-    // Check top/bottom of r2
-    if (y1 < y2 && r2.y == startY) {
-        int doorX = r2.x + r2.width / 2;
-        int doorY = r2.y - 1;
-        if (doorX >= 0 && doorX < GRID_WIDTH && doorY >= 0 && doorY < GRID_HEIGHT) {
-            grid[doorY][doorX] = TileType::Door;
-            doors.push_back(DoorData(doorX, doorY, r1.id, r2.id, false, true));
-            std::cout << "[DEBUG] Door placed at (" << doorX << ", " << doorY << ") between rooms " << r1.id << " and " << r2.id << std::endl;
-        }
-    }
-    
-    if (y2 < y1 && r2.y + r2.height == endY) {
-        int doorX = r2.x + r2.width / 2;
-        int doorY = r2.y + r2.height;
-        if (doorX >= 0 && doorX < GRID_WIDTH && doorY >= 0 && doorY < GRID_HEIGHT) {
-            grid[doorY][doorX] = TileType::Door;
-            doors.push_back(DoorData(doorX, doorY, r1.id, r2.id, false, true));
-            std::cout << "[DEBUG] Door placed at (" << doorX << ", " << doorY << ") between rooms " << r1.id << " and " << r2.id << std::endl;
         }
     }
 }
@@ -252,9 +248,52 @@ TileType Dungeon::getTile(int x, int y) const {
 }
 
 void Dungeon::setTile(int x, int y, TileType type) {
-    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+    if (isInBounds(x, y)) {
         grid[y][x] = type;
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS - Reduce code duplication
+// ═══════════════════════════════════════════════════════════════════════
+
+bool Dungeon::isInBounds(int x, int y) const {
+    return x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT;
+}
+
+std::vector<std::pair<int, int>> Dungeon::getNeighbors(int x, int y) const {
+    return {
+        {x, y - 1},      // Up
+        {x, y + 1},      // Down
+        {x - 1, y},      // Left
+        {x + 1, y}       // Right
+    };
+}
+
+std::vector<std::pair<int, int>> Dungeon::getValidNeighbors(int x, int y) const {
+    std::vector<std::pair<int, int>> validMoves;
+    for (const auto& neighbor : getNeighbors(x, y)) {
+        if (isWalkable(neighbor.first, neighbor.second)) {
+            validMoves.push_back(neighbor);
+        }
+    }
+    return validMoves;
+}
+
+std::string Dungeon::getFloorTextureKey(int x, int y, int currentFloor) const {
+    int variant = getDeterministicVariant(x, y, 5);
+    
+    if (currentFloor <= 3) {
+        return "floor";  // All brick for early floors
+    } else if (currentFloor <= 6) {
+        return (variant < 2) ? "floor" : "floor_variant_2";  // Brick or Rock
+    } else {
+        return (variant < 3) ? "floor_variant_1" : "floor_variant_2";  // Brimstone or Rock
+    }
+}
+
+int Dungeon::getDeterministicVariant(int x, int y, int maxVariants) const {
+    return (x * VARIANT_PRIME_X + y * VARIANT_PRIME_Y) % maxVariants;
 }
 
 bool Dungeon::isWalkable(int x, int y) const {
@@ -288,15 +327,8 @@ std::pair<int, int> Dungeon::findNextMoveToPlayer(int enemyX, int enemyY, int pl
         auto current = frontier.front();
         frontier.pop();
         
-        // Check all 4 directions (up, down, left, right)
-        std::vector<std::pair<int, int>> neighbors = {
-            {current.first, current.second - 1},  // Up
-            {current.first, current.second + 1},  // Down
-            {current.first - 1, current.second},  // Left
-            {current.first + 1, current.second}   // Right
-        };
-        
-        for (const auto& next : neighbors) {
+        // Use helper function for neighbors
+        for (const auto& next : getNeighbors(current.first, current.second)) {
             // Check if already visited
             if (cameFrom.find(next) != cameFrom.end()) {
                 continue;
@@ -341,19 +373,137 @@ std::pair<int, int> Dungeon::findNextMoveToPlayer(int enemyX, int enemyY, int pl
     return {enemyX, enemyY};
 }
 
+// A* Pathfinding (Smart)
+std::pair<int, int> Dungeon::findNextMoveToPlayerAStar(int enemyX, int enemyY, int playerX, int playerY) const {
+    // If already at player position, don't move
+    if (enemyX == playerX && enemyY == playerY) return {enemyX, enemyY};
+
+    // Priority queue for A* (min-heap based on f_score)
+    // Pair: <f_score, <x, y>>
+    using Node = std::pair<int, std::pair<int, int>>;
+    std::priority_queue<Node, std::vector<Node>, std::greater<Node>> openSet;
+    
+    std::map<std::pair<int, int>, std::pair<int, int>> cameFrom;
+    std::map<std::pair<int, int>, int> gScore;
+    
+    auto start = std::make_pair(enemyX, enemyY);
+    auto goal = std::make_pair(playerX, playerY);
+    
+    gScore[start] = 0;
+    // Heuristic: Manhattan distance
+    int hScore = std::abs(enemyX - playerX) + std::abs(enemyY - playerY);
+    openSet.push({hScore, start});
+    
+    bool found = false;
+    
+    while (!openSet.empty()) {
+        auto current = openSet.top().second;
+        openSet.pop();
+        
+        if (current == goal) {
+            found = true;
+            break;
+        }
+        
+        // Use helper function for neighbors
+        for (const auto& next : getNeighbors(current.first, current.second)) {
+            // Check bounds and walkability (allow moving into player position for attack range check)
+            if (!isWalkable(next.first, next.second) && next != goal) continue;
+            
+            int tentative_gScore = gScore[current] + 1;
+            
+            if (gScore.find(next) == gScore.end() || tentative_gScore < gScore[next]) {
+                cameFrom[next] = current;
+                gScore[next] = tentative_gScore;
+                int fScore = tentative_gScore + std::abs(next.first - playerX) + std::abs(next.second - playerY);
+                openSet.push({fScore, next});
+            }
+        }
+    }
+    
+    if (!found) return {enemyX, enemyY}; // No path
+    
+    // Reconstruct path
+    auto current = goal;
+    auto nextMove = current;
+    
+    while (cameFrom[current] != start) {
+        nextMove = current;
+        current = cameFrom[current];
+        // Safety break for infinite loops (shouldn't happen with valid A*)
+        if (current == start) break;
+    }
+    
+    // If path is direct (1 step), nextMove is goal. Otherwise it's the step after start.
+    // Actually, we want the step immediately after start.
+    // The loop backtracks from goal. When it stops, 'current' is the node that came from start.
+    return current;
+}
+
+// Random Movement (Erratic)
+std::pair<int, int> Dungeon::findNextMoveRandom(int enemyX, int enemyY) const {
+    auto validMoves = getValidNeighbors(enemyX, enemyY);
+    
+    if (validMoves.empty()) return {enemyX, enemyY};
+    
+    // 20% chance to stay still
+    if (std::rand() % 100 < 20) return {enemyX, enemyY};
+    
+    return validMoves[std::rand() % validMoves.size()];
+}
+
+// Flank Movement (Strategic)
+std::pair<int, int> Dungeon::findNextMoveFlank(int enemyX, int enemyY, int playerX, int playerY) const {
+    int dx = std::abs(enemyX - playerX);
+    int dy = std::abs(enemyY - playerY);
+    int dist = dx + dy;
+    
+    // If too far, chase (A*)
+    if (dist > 4) return findNextMoveToPlayerAStar(enemyX, enemyY, playerX, playerY);
+    
+    // If too close, try to back away
+    if (dist < 2) {
+        // Find move that increases distance
+        for (const auto& next : getNeighbors(enemyX, enemyY)) {
+            if (isWalkable(next.first, next.second)) {
+                int newDist = std::abs(next.first - playerX) + std::abs(next.second - playerY);
+                if (newDist > dist) return next;
+            }
+        }
+    }
+    
+    // If at good range, try to move sideways (maintain distance but change angle)
+    auto neighbors = getNeighbors(enemyX, enemyY);
+    
+    // Shuffle to make it unpredictable
+    if (std::rand() % 2 == 0) std::swap(neighbors[0], neighbors[1]);
+    if (std::rand() % 2 == 0) std::swap(neighbors[2], neighbors[3]);
+    
+    for (const auto& next : neighbors) {
+        if (isWalkable(next.first, next.second)) {
+            int newDist = std::abs(next.first - playerX) + std::abs(next.second - playerY);
+            // Accept move if distance is maintained (2-4 range)
+            if (newDist >= 2 && newDist <= 4) return next;
+        }
+    }
+    
+    // Fallback: just chase
+    return findNextMoveToPlayerAStar(enemyX, enemyY, playerX, playerY);
+}
+
 std::vector<int> Dungeon::getReachableRooms(int roomId) {
     return roomGraph.bfs(roomId);
 }
 
 std::vector<int> Dungeon::findShortestPath(int fromRoom, int toRoom) {
-    auto distances = roomGraph.dijkstra(fromRoom);
-    std::vector<int> path;
+    // OPTIMIZATION: Use Graph's findPath() method for cleaner code
+    auto path = roomGraph.findPath(fromRoom, toRoom);
     
-    // Simple path reconstruction (just return rooms in distance order)
-    for (const auto& pair : distances) {
-        if (pair.second < std::numeric_limits<int>::max()) {
-            path.push_back(pair.first);
-        }
+    if (path.empty()) {
+        std::cout << "[Dungeon] No path found from room " << fromRoom 
+                  << " to room " << toRoom << std::endl;
+    } else {
+        std::cout << "[Dungeon] Path found with " << path.size() << " rooms" << std::endl;
     }
     
     return path;
@@ -416,22 +566,8 @@ void Dungeon::render(sf::RenderWindow& window, float tileSize, int currentFloor)
                     fallbackColor = sf::Color(60, 60, 70);  // Stone gray
                     break;
                 case TileType::Floor: {
-                    // Randomize floor tile variant based on position (deterministic)
-                    int variant = (x * 7 + y * 13) % 5;  // 0-4 for 5 variants
-                    
-                    // Choose floor type based on current floor level
-                    std::string floorKey;
-                    if (currentFloor <= 3) {
-                        // Floors 1-3: Mostly Brick (cave-like)
-                        floorKey = (variant == 0) ? "floor" : "floor";  // All brick
-                    } else if (currentFloor <= 6) {
-                        // Floors 4-6: Mix of Brick and Rock (rocky cavern)
-                        floorKey = (variant < 2) ? "floor" : "floor_variant_2";  // Brick or Rock
-                    } else {
-                        // Floors 7-10: Brimstone (hellish deep dungeon)
-                        floorKey = (variant < 3) ? "floor_variant_1" : "floor_variant_2";  // Brimstone or Rock
-                    }
-                    
+                    // Use helper function for floor texture selection
+                    std::string floorKey = getFloorTextureKey(x, y, currentFloor);
                     texture = AssetManager::getInstance().getTexture(floorKey);
                     fallbackColor = sf::Color(80, 70, 60);  // Brown floor
                     break;
@@ -467,11 +603,35 @@ void Dungeon::render(sf::RenderWindow& window, float tileSize, int currentFloor)
 
             if (texture) {
                 sf::Sprite tileSprite(*texture);
+                
+                // Handle sprite sheets (if texture is larger than expected single tile)
+                // Determine base asset size: DebtsInTheDepths uses 20x20, Kenney uses 16x16
+                unsigned int baseAssetSize = 16;
+                if (texture->getSize().y % 20 == 0) {
+                    baseAssetSize = 20;
+                }
+                
+                if (texture->getSize().x > baseAssetSize || texture->getSize().y > baseAssetSize) {
+                    // It's likely a sprite sheet or large asset
+                    // Pick a random variant if it's a wall/floor sheet
+                    int sheetCols = texture->getSize().x / baseAssetSize;
+                    int sheetRows = texture->getSize().y / baseAssetSize;
+                    
+                    // Deterministic random based on position
+                    int variant = (x * 7 + y * 13) % (sheetCols * sheetRows);
+                    int tx = variant % sheetCols;
+                    int ty = variant / sheetCols;
+                    
+                    // SFML 3.0: IntRect takes ({pos}, {size})
+                    tileSprite.setTextureRect(sf::IntRect({static_cast<int>(tx * baseAssetSize), static_cast<int>(ty * baseAssetSize)}, 
+                                                          {static_cast<int>(baseAssetSize), static_cast<int>(baseAssetSize)}));
+                }
+                
                 tileSprite.setPosition(sf::Vector2f(x * tileSize, y * tileSize));
                 
-                // Scale to fit tile size (DebtsInTheDepths sprites may vary in size)
-                float scaleX = tileSize / texture->getSize().x;
-                float scaleY = tileSize / texture->getSize().y;
+                // Scale to fit target tile size
+                float scaleX = tileSize / static_cast<float>(tileSprite.getTextureRect().size.x);
+                float scaleY = tileSize / static_cast<float>(tileSprite.getTextureRect().size.y);
                 tileSprite.setScale(sf::Vector2f(scaleX, scaleY));
                 
                 window.draw(tileSprite);
@@ -531,7 +691,7 @@ void Dungeon::openDoor(int x, int y) {
     DoorData* door = getDoorAt(x, y);
     if (door && !door->isOpen) {
         door->isOpen = true;
-        grid[y][x] = TileType::Floor;  // Make passable
+        // grid[y][x] = TileType::Floor;  // REMOVED: Keep as Door type, isWalkable handles passability
         std::cout << "[DEBUG] Door opened at (" << x << ", " << y << ")" << std::endl;
     }
 }
@@ -580,4 +740,145 @@ int Dungeon::getRoomIdAt(int x, int y) const {
         }
     }
     return -1;  // Not in any room (in corridor)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DECORATIVE TILE SYSTEM - Environmental props and particles
+// ═══════════════════════════════════════════════════════════════════════
+
+void Dungeon::generateDecorations() {
+    decorTiles.clear();
+    
+    static const char* decorTypes[] = {"torch", "skull", "barrel", "crate", "bones", "cobweb"};
+    static const int numTypes = 6;
+    
+    for (int y = 0; y < GRID_HEIGHT; y++) {
+        for (int x = 0; x < GRID_WIDTH; x++) {
+            if (grid[y][x] == TileType::Floor) {
+                // Random chance to place decoration
+                float roll = static_cast<float>(std::rand() % 100) / 100.f;
+                if (roll < DECOR_CHANCE) {
+                    // Check not near doors or stairs
+                    bool nearImportant = false;
+                    for (const auto& door : doors) {
+                        if (std::abs(x - door.x) <= 1 && std::abs(y - door.y) <= 1) {
+                            nearImportant = true;
+                            break;
+                        }
+                    }
+                    if (x == stairsX && y == stairsY) nearImportant = true;
+                    
+                    if (!nearImportant) {
+                        int typeIdx = std::rand() % numTypes;
+                        decorTiles.emplace_back(x, y, decorTypes[typeIdx]);
+                    }
+                }
+            }
+            // Place torches on walls near rooms
+            else if (grid[y][x] == TileType::Wall && y > 0 && grid[y-1][x] == TileType::Floor) {
+                if ((std::rand() % 100) < 10) {  // 10% chance
+                    decorTiles.emplace_back(x, y, "wall_torch");
+                }
+            }
+        }
+    }
+    
+    std::cout << "[Dungeon] Generated " << decorTiles.size() << " decorations" << std::endl;
+}
+
+void Dungeon::renderDecorations(sf::RenderWindow& window, float tileSize) const {
+    for (const auto& decor : decorTiles) {
+        // Map decoration types to existing loaded assets
+        std::string textureKey;
+        if (decor.type == "torch" || decor.type == "wall_torch") {
+            textureKey = "props_inferno";  // Fire props
+        } else if (decor.type == "skull" || decor.type == "bones") {
+            textureKey = "props_corpses";  // Corpse/bone props
+        } else if (decor.type == "cobweb") {
+            textureKey = "props_catacombs";  // Catacomb decorations
+        } else {
+            textureKey = "props_swamp";  // Barrel, crate -> swamp props
+        }
+        
+        sf::Texture* texture = AssetManager::getInstance().getTexture(textureKey);
+        
+        if (texture) {
+            sf::Sprite sprite(*texture);
+            sprite.setPosition(sf::Vector2f(decor.x * tileSize, decor.y * tileSize));
+            
+            float scale = tileSize / static_cast<float>(texture->getSize().x);
+            sprite.setScale(sf::Vector2f(scale * 0.5f, scale * 0.5f));  // Smaller props
+            sprite.setColor(sf::Color(255, 255, 255, 150));  // Semi-transparent
+            
+            window.draw(sprite);
+        } else {
+            // Fallback: simple colored circle (no log spam)
+            sf::CircleShape shape(tileSize * 0.12f);
+            shape.setPosition(sf::Vector2f(decor.x * tileSize + tileSize * 0.38f, 
+                                           decor.y * tileSize + tileSize * 0.38f));
+            
+            if (decor.type == "torch" || decor.type == "wall_torch") {
+                shape.setFillColor(sf::Color(255, 150, 50, 180));  // Orange for torch
+            } else if (decor.type == "skull" || decor.type == "bones") {
+                shape.setFillColor(sf::Color(200, 200, 180, 120));  // Bone white
+            } else {
+                shape.setFillColor(sf::Color(139, 90, 43, 120));  // Brown for crates/barrels
+            }
+            window.draw(shape);
+        }
+    }
+    
+    // Render ambient particles
+    for (const auto& particle : ambientParticles) {
+        sf::CircleShape shape(2.f);
+        shape.setPosition(sf::Vector2f(particle.x, particle.y));
+        
+        uint8_t alpha = static_cast<uint8_t>(particle.alpha * (particle.lifetime / 3.f));
+        if (particle.type == "dust") {
+            shape.setFillColor(sf::Color(150, 140, 120, alpha));
+        } else if (particle.type == "spark") {
+            shape.setFillColor(sf::Color(255, 200, 100, alpha));
+        } else {
+            shape.setFillColor(sf::Color(100, 100, 120, alpha / 2));  // Fog
+        }
+        window.draw(shape);
+    }
+}
+
+void Dungeon::updateAmbientParticles(float deltaTime) const {
+    // Update existing particles
+    for (auto it = ambientParticles.begin(); it != ambientParticles.end();) {
+        it->lifetime -= deltaTime;
+        it->x += it->vx * deltaTime;
+        it->y += it->vy * deltaTime;
+        it->alpha = 255.f * (it->lifetime / 3.f);
+        
+        if (it->lifetime <= 0.f) {
+            it = ambientParticles.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Spawn new particles from torches
+    particleSpawnTimer += deltaTime;
+    if (particleSpawnTimer >= PARTICLE_SPAWN_INTERVAL && 
+        static_cast<int>(ambientParticles.size()) < MAX_AMBIENT_PARTICLES) {
+        particleSpawnTimer = 0.f;
+        
+        // Find a torch to spawn from
+        for (const auto& decor : decorTiles) {
+            if ((decor.type == "torch" || decor.type == "wall_torch") && 
+                static_cast<int>(ambientParticles.size()) < MAX_AMBIENT_PARTICLES) {
+                if ((std::rand() % 100) < 30) {  // 30% chance per torch
+                    float px = decor.x * 32.f + 16.f + (std::rand() % 10 - 5);
+                    float py = decor.y * 32.f + 5.f;
+                    ambientParticles.emplace_back(px, py, "spark");
+                    ambientParticles.back().vy = -20.f - (std::rand() % 10);
+                    ambientParticles.back().vx = (std::rand() % 10 - 5);
+                    break;  // One per update
+                }
+            }
+        }
+    }
 }

@@ -1,342 +1,341 @@
-# 🧩 Dungeon Explorer – 2D C++ Game Using DSA, SFML, and TGUI
+# 🎮 Dungeon Explorer - DSA Game
 
-A fully functional 2D tile-based adventure game demonstrating core Data Structures and Algorithms through gameplay mechanics.
+A roguelike dungeon crawler built with **C++ and SFML 3.0**, demonstrating **15 Data Structures and Algorithms** in a complete game implementation.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![C++](https://img.shields.io/badge/C++-17-00599C?logo=cplusplus)
-![SFML](https://img.shields.io/badge/SFML-2.6-8CC445)
-![TGUI](https://img.shields.io/badge/TGUI-1.0-orange)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![C++](https://img.shields.io/badge/C++-17-blue) ![SFML](https://img.shields.io/badge/SFML-3.0-orange)
 
-## 🎯 Overview
+---
 
-Dungeon Explorer is an educational game that demonstrates various data structures and algorithms in action. Each gameplay system is built around a specific DSA concept, making it perfect for learning while playing.
+## 📋 Table of Contents
 
-## 🧱 Features & DSA Integration
+- [Game Overview](#-game-overview)
+- [Architecture](#-architecture)
+- [Data Structures & Algorithms](#-data-structures--algorithms)
+- [Features](#-features)
+- [Controls](#-controls)
+- [Build Instructions](#-build-instructions)
+- [Project Structure](#-project-structure)
+- [Technical Details](#-technical-details)
 
-| Gameplay Element | Data Structure | Purpose |
-|-----------------|----------------|---------|
-| **Dungeon Map** | Graph + Array | Room layout and pathfinding |
-| **Player Movement** | Stack | Backtracking path history |
-| **Enemies** | Queue | Turn-based attack system |
-| **Loot System** | Heap (Priority Queue) | Ranking best items |
-| **Inventory** | Linked List | Dynamic item management |
-| **Skill Tree** | Binary Tree | Upgrade path system |
-| **Item Lookup** | Hash Table | Fast item search |
-| **Pathfinding** | BFS/DFS/Dijkstra | Map exploration |
+---
 
-## 🧠 Algorithms Demonstrated
+## 🎯 Game Overview
 
-- **BFS (Breadth-First Search)**: Discover all connected rooms
-- **DFS (Depth-First Search)**: Explore unexplored areas
-- **Dijkstra's Algorithm**: Find shortest path to treasure
-- **Heap Sort**: Order loot by value
-- **Tree Traversal**: Navigate skill unlocks
+Dungeon Explorer is a **turn-based roguelike** where players navigate procedurally generated dungeons across 10 floors, fight enemies with adaptive AI, collect loot, unlock skills, and progress to victory.
 
-## ⚙️ Technologies
+### Gameplay Loop
 
-- **Language**: C++17
-- **Graphics**: SFML 2.6
-- **UI System**: TGUI 1.0
-- **Build System**: CMake 3.16+
-- **Platform**: Windows, Linux, macOS
-
-## 📁 Project Structure
-
-```
-DungeonExplorer/
-├── assets/
-│   ├── data/           # JSON configuration files
-│   ├── tiles/          # Tile graphics (add your own)
-│   ├── characters/     # Character sprites (add your own)
-│   ├── ui/             # UI elements (add your own)
-│   ├── sounds/         # Sound effects (add your own)
-│   └── fonts/          # Fonts (add your own)
-├── include/
-│   ├── DataStructures/ # DSA implementations
-│   │   ├── Stack.h
-│   │   ├── Queue.h
-│   │   ├── LinkedList.h
-│   │   ├── Heap.h
-│   │   ├── Tree.h
-│   │   ├── Graph.h
-│   │   └── HashTable.h
-│   ├── Game.h
-│   ├── Player.h
-│   ├── Dungeon.h
-│   ├── Enemy.h
-│   ├── SkillTree.h
-│   ├── UIManager.h
-│   └── Renderer.h
-├── src/
-│   ├── main.cpp
-│   └── [implementation files]
-└── CMakeLists.txt
+```mermaid
+flowchart LR
+    A[Enter Floor] --> B[Explore Dungeon]
+    B --> C{Enemy?}
+    C -->|Yes| D[Combat]
+    C -->|No| E[Collect Loot]
+    D --> F[Enemy Dies]
+    F --> G[Drop Items]
+    G --> E
+    E --> H{Find Stairs?}
+    H -->|No| B
+    H -->|Yes| I[Descend]
+    I --> A
 ```
 
-## 🚀 Building the Project
+---
 
-### Prerequisites
+## 🏗️ Architecture
 
-1. **C++ Compiler** with C++17 support
-   - Windows: Visual Studio 2019+ or MinGW-w64
-   - Linux: GCC 7+ or Clang 5+
-   - macOS: Xcode 10+ or Clang
+### System Architecture
 
-2. **CMake** 3.16 or higher
-   - Download from: https://cmake.org/download/
-
-3. **SFML 2.6**
-   - Windows: Download from https://www.sfml-dev.org/download.php
-   - Linux: `sudo apt-get install libsfml-dev`
-   - macOS: `brew install sfml`
-
-4. **TGUI 1.0+**
-   - Download from: https://tgui.eu/download/
-   - Or build from source: https://github.com/texus/TGUI
-
-### Windows Build Instructions
-
-#### Option 1: Using Visual Studio
-
-```powershell
-# Navigate to project directory
-cd "C:\Users\sidde\OneDrive\Desktop\FSD\dsa game\DungeonExplorer"
-
-# Create build directory
-mkdir build
-cd build
-
-# Generate Visual Studio solution
-cmake .. -G "Visual Studio 16 2019" -A x64
-
-# Open the solution
-start DungeonExplorer.sln
-
-# Or build from command line
-cmake --build . --config Release
+```mermaid
+graph TB
+    subgraph Core["Core Game Loop"]
+        Game[Game.cpp]
+        Game --> Player
+        Game --> Dungeon
+        Game --> EnemyManager
+        Game --> UIManager
+    end
+    
+    subgraph DSA["Data Structures"]
+        Stack[Stack - Movement History]
+        Queue[Queue - Turn Order]
+        LinkedList[LinkedList - Inventory]
+        HashTable[HashTable - Item Database]
+        Heap[Heap - Loot Priority]
+        Tree[Binary Tree - Skills]
+        Graph[Graph - Room Navigation]
+        AStar[A* - Pathfinding]
+        SpatialHash[SpatialHash - Combat Queries]
+    end
+    
+    subgraph Systems["Game Systems"]
+        Player --> Stack
+        Player --> LinkedList
+        EnemyManager --> Queue
+        EnemyManager --> AStar
+        EnemyManager --> SpatialHash
+        Dungeon --> Graph
+        ItemManager --> HashTable
+        SkillTree --> Tree
+        LootSystem --> Heap
+    end
+    
+    subgraph Rendering["Rendering"]
+        Renderer[Renderer.cpp]
+        UIManager[UIManager.cpp]
+        ParticleSystem[ParticleSystem.cpp]
+    end
 ```
 
-#### Option 2: Using MinGW
+### Class Diagram
 
-```powershell
-# Create build directory
-mkdir build
-cd build
-
-# Generate Makefiles
-cmake .. -G "MinGW Makefiles"
-
-# Build
-cmake --build .
+```mermaid
+classDiagram
+    class Game {
+        -Player player
+        -Dungeon dungeon
+        -EnemyManager enemies
+        -UIManager ui
+        +run()
+        +handleInput()
+        +update()
+        +render()
+    }
+    
+    class Player {
+        -Stack~Position~ moveHistory
+        -LinkedList~ItemNew~ inventory
+        -int health, mana, level
+        +move()
+        +attack()
+        +useItem()
+        +backtrack()
+    }
+    
+    class Dungeon {
+        -Graph~int~ roomGraph
+        -vector~Room~ rooms
+        +generate()
+        +findPath()
+        +dijkstra()
+    }
+    
+    class EnemyManager {
+        -Queue~Enemy~ turnQueue
+        -SpatialHash~int~ enemyGrid
+        -AStarPathfinder pathfinder
+        +update()
+        +findNearbyEnemies()
+        +buildSpatialIndex()
+    }
+    
+    class ItemManager {
+        -HashTable~string,ItemNew~ items
+        -Heap~Loot~ premiumLoot
+        +getItem()
+        +getRandomDrop()
+        +generateLootTable()
+    }
+    
+    class SkillTree {
+        -Tree~Skill~ skillTree
+        +unlockSkill()
+        +getSkillPath()
+    }
+    
+    Game --> Player
+    Game --> Dungeon
+    Game --> EnemyManager
+    Game --> ItemManager
+    Game --> SkillTree
 ```
 
-### Linux Build Instructions
+---
 
-```bash
-# Navigate to project directory
-cd ~/DungeonExplorer
+## 📊 Data Structures & Algorithms
 
-# Install dependencies
-sudo apt-get update
-sudo apt-get install build-essential cmake libsfml-dev
+### 15 DSA Implementations
 
-# Install TGUI (if not available via package manager)
-# Follow instructions at: https://tgui.eu/tutorials/1.0/linux/
+| # | DSA | Location | Purpose | Complexity |
+|---|-----|----------|---------|------------|
+| 1 | **Stack** | `Stack.h` | Player movement history (backtracking) | O(1) push/pop |
+| 2 | **Queue** | `Queue.h` | Enemy turn order management | O(1) enqueue/dequeue |
+| 3 | **Linked List** | `LinkedList.h` | Player inventory storage | O(1) insert, O(n) search |
+| 4 | **Hash Table** | `HashTable.h` | Item database lookup | O(1) average lookup |
+| 5 | **Heap (Max)** | `Heap.h` | Premium loot prioritization | O(log n) insert |
+| 6 | **Binary Tree** | `Tree.h` | Skill tree progression | O(log n) traversal |
+| 7 | **Graph** | `Graph.h` | Room connectivity | O(V+E) traversal |
+| 8 | **Priority Queue** | `PriorityQueue.h` | A* open set management | O(log n) operations |
+| 9 | **A* Pathfinding** | `AStar.h` | Enemy smart navigation | O(E log V) |
+| 10 | **Spatial Hash** | `SpatialHash.h` | O(k) combat queries | O(1) cell lookup |
+| 11 | **Object Pool** | `ObjectPool.h` | Particle memory reuse | O(1) acquire/release |
+| 12 | **LRU Cache** | `LRUCache.h` | Asset memory management | O(1) get/put |
+| 13 | **Path Cache** | `GameUtils.h` | A* result caching | O(1) cache hit |
+| 14 | **Distance Algorithms** | `GameUtils.h` | Manhattan, Euclidean, Chebyshev | O(1) |
+| 15 | **Input Debounce** | `GameUtils.h` | Key repeat prevention | O(1) |
 
-# Create build directory
-mkdir build && cd build
+### DSA Flow Diagram
 
-# Generate and build
-cmake ..
-make -j$(nproc)
-
-# Run the game
-./DungeonExplorer
+```mermaid
+flowchart TD
+    subgraph Movement["Player Movement"]
+        M1[WASD Input] --> M2[Stack.push Position]
+        M3[B Key] --> M4[Stack.pop]
+        M4 --> M5[Move to Previous]
+    end
+    
+    subgraph Combat["Combat System"]
+        C1[Player Attack] --> C2[SpatialHash.query]
+        C2 --> C3[Find Nearby Enemies]
+        C3 --> C4[Queue Enemy Turns]
+        C4 --> C5[Process Turn Order]
+    end
+    
+    subgraph Loot["Loot System"]
+        L1[Enemy Dies] --> L2[HashTable.lookup]
+        L2 --> L3[Generate Drop]
+        L3 --> L4[Heap.insert if Rare]
+        L4 --> L5[LinkedList.add to Inventory]
+    end
+    
+    subgraph Navigation["Enemy AI"]
+        N1[Enemy Update] --> N2[A* Pathfinding]
+        N2 --> N3[Graph.getNeighbors]
+        N3 --> N4[PriorityQueue Processing]
+        N4 --> N5[Move Towards Player]
+    end
 ```
 
-### macOS Build Instructions
+---
 
-```bash
-# Install dependencies
-brew install cmake sfml tgui
+## 🎮 Features
 
-# Navigate to project directory
-cd ~/DungeonExplorer
+### Core Systems
+- ✅ **Procedural Generation**: 10 unique dungeon floors
+- ✅ **Turn-Based Combat**: Strategic enemy encounters
+- ✅ **Loot System**: 30+ items with rarity tiers
+- ✅ **Skill Tree**: 20+ skills with unlock dependencies
+- ✅ **Achievement System**: 50+ achievements
+- ✅ **Save/Load**: Persistent game state
 
-# Create build directory
-mkdir build && cd build
+### Visual Features
+- ✅ **Particle Effects**: Blood, sparks, magic effects
+- ✅ **Floating Text**: Damage numbers, notifications
+- ✅ **Mini-map**: Real-time dungeon overview
+- ✅ **DSA Visualization**: Graph paths, stack trails
 
-# Generate and build
-cmake ..
-make -j$(sysctl -n hw.ncpu)
-
-# Run the game
-./DungeonExplorer
-```
+---
 
 ## 🎮 Controls
 
 | Key | Action |
 |-----|--------|
-| **W/↑** | Move Up |
-| **A/←** | Move Left |
-| **S/↓** | Move Down |
-| **D/→** | Move Right |
-| **B** | Backtrack (Stack) |
-| **I** | Open Inventory |
-| **K** | Open Skill Tree |
-| **ESC** | Return to Menu |
-
-## 📝 Console Logs
-
-The game logs all DSA operations to the console for educational purposes:
-
-```
-[DSA-Stack] Pushed element. Stack size: 5
-[DSA-Queue] Enqueued element. Queue size: 3
-[DSA-Graph] Running BFS from 0
-[DSA-Heap] Inserted element. Heap size: 8
-[DSA-LinkedList] Appended element. List size: 4
-[DSA-Tree] Level-order traversal
-[DSA-HashTable] Key found
-```
-
-## 🎨 Adding Assets
-
-To enhance the visual experience, add your own assets:
-
-### Recommended Sources:
-
-1. **Tilesets**: 
-   - [0x72's Dungeon Tileset](https://0x72.itch.io/dungeontileset-ii)
-   - [Kenney's Asset Packs](https://kenney.nl/)
-
-2. **Character Sprites**:
-   - [0x72's Tiny Dungeon](https://0x72.itch.io/dungeontileset-ii)
-
-3. **UI Elements**:
-   - [Kenney UI Pack](https://kenney.nl/assets/ui-pack)
-
-4. **Fonts**:
-   - [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P)
-
-5. **Sounds**:
-   - [Kenney Sound Pack](https://kenney.nl/assets/rpg-audio)
-   - [OpenGameArt](https://opengameart.org/)
-
-### Asset Placement:
-
-```
-assets/
-├── tiles/      → Place .png tile images here
-├── characters/ → Place .png sprite sheets here
-├── ui/         → Place .png UI elements here
-├── sounds/     → Place .wav or .ogg files here
-└── fonts/      → Place .ttf font files here
-```
-
-## 🧪 Testing DSA Features
-
-### 1. Stack (Player Movement)
-- Move around the dungeon
-- Press **B** to backtrack through your path
-- Watch console logs show stack operations
-
-### 2. Queue (Enemy Turns)
-- Enemies attack in turn-based order
-- Console shows queue enqueue/dequeue operations
-
-### 3. Linked List (Inventory)
-- Collect items as you explore
-- Press **I** to view inventory
-- Items stored in linked list structure
-
-### 4. Heap (Loot System)
-- Defeat enemies to get loot
-- Best items extracted first (max heap)
-
-### 5. Binary Tree (Skill Tree)
-- Press **K** to view skill tree
-- Unlock skills in hierarchical order
-- Tree traversal demonstrated
-
-### 6. Graph (Dungeon Layout)
-- Rooms connected as graph nodes
-- BFS, DFS, and Dijkstra demonstrated at startup
-
-### 7. Hash Table (Item Database)
-- Fast item lookup by name
-- Console shows hash operations
-
-## 🔧 Troubleshooting
-
-### SFML Not Found
-```bash
-# Set SFML_DIR environment variable
-export SFML_DIR=/path/to/SFML-2.6.0/lib/cmake/SFML
-```
-
-### TGUI Not Found
-```bash
-# Set TGUI_DIR environment variable
-export TGUI_DIR=/path/to/TGUI-1.0/lib/cmake/TGUI
-```
-
-### CMake Error: C++17 Not Supported
-- Ensure you have a modern compiler (GCC 7+, Clang 5+, MSVC 2017+)
-
-### Missing DLLs (Windows)
-- Copy SFML and TGUI DLLs to the same directory as the executable
-- Usually found in `SFML-2.6.0/bin/` and `TGUI-1.0/bin/`
-
-## 📚 Learning Resources
-
-### Data Structures:
-- [Stack](include/DataStructures/Stack.h) - LIFO structure for backtracking
-- [Queue](include/DataStructures/Queue.h) - FIFO structure for turn order
-- [Linked List](include/DataStructures/LinkedList.h) - Dynamic list for inventory
-- [Heap](include/DataStructures/Heap.h) - Priority queue for loot
-- [Binary Tree](include/DataStructures/Tree.h) - Hierarchical skill structure
-- [Graph](include/DataStructures/Graph.h) - Room connections and pathfinding
-- [Hash Table](include/DataStructures/HashTable.h) - Fast item lookup
-
-### Algorithms:
-- BFS: `Dungeon::visualizeBFS()`
-- DFS: `Dungeon::visualizeDFS()`
-- Dijkstra: `Dungeon::visualizeDijkstra()`
-
-## 🤝 Contributing
-
-This is an educational project. Feel free to:
-- Add new DSA features
-- Enhance graphics and UI
-- Add more gameplay mechanics
-- Improve documentation
-
-## 📄 License
-
-This project is created for educational purposes. Feel free to use and modify for learning.
-
-## 🎓 Educational Value
-
-This project demonstrates:
-- ✅ Practical application of data structures
-- ✅ Algorithm visualization
-- ✅ Object-oriented design in C++
-- ✅ Game architecture patterns
-- ✅ SFML graphics programming
-- ✅ GUI development with TGUI
-- ✅ CMake build systems
-
-## 📞 Support
-
-For questions or issues:
-1. Check the console logs for DSA operation details
-2. Review the code comments in header files
-3. Ensure all dependencies are correctly installed
+| **WASD** | Move player |
+| **B** | Backtrack (Stack undo) |
+| **Space** | Attack nearest enemy |
+| **E** | Interact (pickup, doors, stairs) |
+| **I** | Toggle inventory |
+| **T** | Toggle skill tree |
+| **U** | Use selected item |
+| **X** | Drop selected item |
+| **1-5** | Activate skills |
+| **M** | Toggle mini-map |
+| **ESC** | Exit game |
 
 ---
 
-**Built with ❤️ for learning Data Structures and Algorithms**
+## 🛠️ Build Instructions
 
-*Dungeon Explorer - Where Learning Meets Adventure!* 🎮✨
+### Prerequisites
+- **C++ Compiler**: GCC 13+ or MSVC 2022
+- **CMake**: 3.10+
+- **SFML**: 3.0.0
+
+### Build Commands
+
+```bash
+# Navigate to project directory
+cd "path/to/DungeonExplorer"
+
+# Generate build files
+cmake -B build -G "Ninja"
+
+# Compile
+cmake --build build --config Release
+
+# Run game
+./build/Release/DungeonExplorer.exe
+```
+
+---
+
+## 📁 Project Structure
+
+```
+DungeonExplorer/
+├── include/
+│   ├── DataStructures/          # 12 DSA implementations
+│   │   ├── Stack.h              # LIFO container
+│   │   ├── Queue.h              # FIFO container
+│   │   ├── LinkedList.h         # Dynamic list
+│   │   ├── HashTable.h          # Key-value store
+│   │   ├── Heap.h               # Priority heap
+│   │   ├── Tree.h               # Binary tree
+│   │   ├── Graph.h              # Adjacency list
+│   │   ├── PriorityQueue.h      # Min/max heap queue
+│   │   ├── AStar.h              # A* pathfinding
+│   │   ├── SpatialHash.h        # Spatial partitioning
+│   │   ├── ObjectPool.h         # Memory pooling
+│   │   └── LRUCache.h           # Cache eviction
+│   ├── Game.h                   # Main game loop
+│   ├── Player.h                 # Player entity
+│   ├── Enemy.h                  # Enemy AI
+│   ├── Dungeon.h                # Level generation
+│   ├── GameUtils.h              # Consolidated utilities
+│   └── ...
+├── src/                         # Implementation files (23 files)
+├── assets/
+│   ├── data/                    # JSON configurations
+│   │   ├── items.json           # 30+ item definitions
+│   │   └── enemies.json         # 8 enemy types
+│   └── kenney/                  # Tileset sprites
+├── doc/                         # Additional documentation
+├── build/                       # Build output
+├── CMakeLists.txt               # Build configuration
+└── README.md                    # This file
+```
+
+---
+
+## 🔧 Technical Details
+
+### Memory Management
+- **Smart Pointers**: `std::unique_ptr` for ownership
+- **Object Pooling**: Particle system reuses objects
+- **LRU Cache**: Texture memory management
+
+### Performance Optimizations
+- **Spatial Hashing**: O(k) enemy queries vs O(n)
+- **Path Caching**: Reuses A* results for common paths
+- **Consolidated Utilities**: 22+ redundant includes removed
+
+### Code Statistics
+| Metric | Count |
+|--------|-------|
+| Source Files | 23 |
+| Header Files | 25 |
+| DSA Implementations | 15 |
+| Lines of Code | ~15,000 |
+| Items | 30+ |
+| Skills | 20+ |
+| Achievements | 50+ |
+
+---
+
+## 📜 License
+
+Educational project for Data Structures and Algorithms demonstration.
+
+---
+
+**Version**: 2.0 | **Updated**: December 2025 | **Build**: ✅ Passing

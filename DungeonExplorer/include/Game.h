@@ -54,6 +54,7 @@ private:
     bool isPaused;
     int currentFloor;
     Position exitStairsPosition;
+    float totalTime;  // Track total elapsed time for animations/lighting
     
     // CHANGE: 2025-11-10 - Loot system with items on ground
     std::vector<Loot> loots;  // Items on the ground
@@ -62,9 +63,61 @@ private:
     // ✨ Active combat effects
     std::vector<CombatEffect> activeEffects;
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // DYNAMIC GAME STATE - Screen effects, combos, and smooth movement
+    // ═══════════════════════════════════════════════════════════════════════
+    float screenShakeTimer = 0.f;
+    float screenShakeIntensity = 0.f;
+    int comboCounter = 0;
+    float comboTimer = 0.f;
+    float targetFPS = 60.f;
+    float currentFPS = 60.f;
+    sf::Vector2f cameraOffset = {0.f, 0.f};  // For smooth camera
+    sf::Vector2f cameraTarget = {0.f, 0.f};
+    
     // Debug flags
     bool debugShowBoundingBoxes = false;  // F3: Show collision boxes
     bool debugRetroMode = false;          // F4: 1-bit retro graphics
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // GAME CONFIGURATION CONSTANTS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Window settings
+    static constexpr unsigned int WINDOW_WIDTH = 800;
+    static constexpr unsigned int WINDOW_HEIGHT = 600;
+    static constexpr unsigned int FRAMERATE_MIN = 30;
+    static constexpr unsigned int FRAMERATE_MAX = 60;
+    static constexpr float TILE_SIZE = 32.0f;
+    static constexpr float MAX_DELTA_TIME = 0.1f;
+    static constexpr float CAMERA_LERP_SPEED = 8.0f;
+    static constexpr float SCREEN_SHAKE_DECAY = 5.0f;
+    static constexpr float COMBO_TIMEOUT = 2.0f;
+    static constexpr float COMBO_DAMAGE_MULT = 0.1f;  // +10% per combo
+    
+    // Combat settings
+    static constexpr int BASE_XP_GAIN = 25;
+    static constexpr int XP_PER_FLOOR = 5;
+    static constexpr int HEALING_POTION_AMOUNT = 50;
+    static constexpr int ATTACK_RANGE_TILES = 2;
+    
+    // UI offsets
+    static constexpr float FLOATING_TEXT_OFFSET_Y = -10.0f;
+    static constexpr float FLOATING_TEXT_OFFSET_Y_DOUBLE = -20.0f;
+    static constexpr float FLOATING_TEXT_OFFSET_Y_TRIPLE = -30.0f;
+    
+    // Effect durations
+    static constexpr float EFFECT_DURATION_SHORT = 0.3f;
+    static constexpr float EFFECT_DURATION_MEDIUM = 0.4f;
+    static constexpr float EFFECT_DURATION_LONG = 0.5f;
+    static constexpr float EFFECT_DURATION_EXTRA_LONG = 0.6f;
+    
+    // Skill system
+    static constexpr int STARTING_SKILL_POINTS = 3;
+    
+    // Floor progression
+    static constexpr int STARTING_FLOOR = 1;
+    static constexpr int MAX_FLOORS = 10;
     
     enum class GameState {
         MainMenu,
@@ -107,12 +160,26 @@ private:
     void updateCombatEffects(float deltaTime);
     void renderCombatEffects();
     
+    // 🎮 Dynamic game systems
+    void applyScreenShake(float intensity, float duration = 0.2f);
+    void updateScreenShake(float deltaTime);
+    void updateCamera(float deltaTime);
+    void incrementCombo();
+    void resetCombo();
+    void setTargetFPS(float fps);
+    
 public:
     Game();
     ~Game();
     
     void run();
     void initialize();
+    
+    // Accessors
+    Player* getPlayer() const { return player.get(); }
+    Dungeon* getDungeon() const { return dungeon.get(); }
+    EnemyManager* getEnemyManager() const { return enemyManager.get(); }
+    SkillTree* getSkillTree() const { return skillTree.get(); }
     
     void setState(GameState state);
     GameState getState() const { return currentState; }

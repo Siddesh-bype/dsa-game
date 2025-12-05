@@ -34,19 +34,23 @@
 #include "Shop.h"
 #include "DataStructures/Heap.h"
 #include "DataStructures/HashTable.h"
+#include "DataStructures/AStar.h"
+#include "DataStructures/SpatialHash.h"
+#include "DataStructures/ObjectPool.h"
+#include "DataStructures/LRUCache.h"
 #include <iostream>
 
 Game::Game() 
-    : window(sf::VideoMode({800, 600}), "Dungeon Explorer - DSA Game"),
+    : window(sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}), "Dungeon Explorer - DSA Game"),
       // gui(window),  // Disabled - TGUI not compatible
       isRunning(true),
       isPaused(false),
       currentState(GameState::Playing),  // Changed from MainMenu to Playing
-      currentFloor(1),
+      currentFloor(STARTING_FLOOR),
       exitStairsPosition({0, 0}),
       levelManager(std::make_unique<DungeonLevelManager>()) {  // NEW: Initialize level manager
     
-    window.setFramerateLimit(60);
+    window.setFramerateLimit(static_cast<unsigned int>(targetFPS));
 }
 
 Game::~Game() {
@@ -75,7 +79,7 @@ void Game::initialize() {
     // Initialize all systems
     player = std::make_unique<Player>();
     dungeon = std::make_unique<Dungeon>();
-    renderer = std::make_unique<Renderer>(&window, 32.0f);
+    renderer = std::make_unique<Renderer>(&window, TILE_SIZE);
     uiManager = std::make_unique<UIManager>(this);  // Fixed - no longer needs gui pointer
     
     // Generate first floor using level manager
@@ -170,8 +174,8 @@ void Game::initialize() {
     skillTree->displayTree();
     
     // Grant starting skill points for testing/gameplay
-    skillTree->addPoints(3);
-    std::cout << "\n[SkillTree] Player starts with 3 skill points." << std::endl;
+    skillTree->addPoints(STARTING_SKILL_POINTS);
+    std::cout << "\n[SkillTree] Player starts with " << STARTING_SKILL_POINTS << " skill points." << std::endl;
     std::cout << "[SkillTree] Press T to open skill tree and unlock skills!" << std::endl;
     std::cout << "[SkillTree] Only 'Slash' (hotkey 1) is unlocked initially.\n" << std::endl;
     
@@ -206,8 +210,8 @@ void Game::run() {
         
         // Cap delta time to prevent huge jumps (e.g., when debugging or lag spikes)
         // Max 0.1 seconds (10 FPS minimum) to prevent physics/animation issues
-        if (deltaTime > 0.1f) {
-            deltaTime = 0.1f;
+        if (deltaTime > MAX_DELTA_TIME) {
+            deltaTime = MAX_DELTA_TIME;
         }
         
         processEvents();
@@ -398,8 +402,7 @@ void Game::handleInput(const sf::Event& event) {
                     Position playerPos = player->getPosition();
                     uiManager->addFloatingText("+50 HP", 
                         playerPos.x * 32.0f, playerPos.y * 32.0f - 10.0f, 
-                        sf::Color(100, 255, 100));  // Green healing text
-                    // TODO: Add healing sound effect
+                        sf::Color(100, 255, 100));
                 }
                 return;
             case sf::Keyboard::Key::E:
@@ -420,7 +423,7 @@ void Game::handleInput(const sf::Event& event) {
                                     sf::Color(255, 215, 0));  // Golden color
                             } else {
                                 // Add to new inventory system
-                                player->addItemNew(item);
+                                player->addItem(item);
                                 
                                 // Show pickup message
                                 uiManager->addFloatingText("+" + item.name, 
@@ -563,6 +566,21 @@ void Game::handleInput(const sf::Event& event) {
 }
 
 void Game::update(float deltaTime) {
+    // Update FPS tracker
+    currentFPS = 1.f / deltaTime;
+    
+    // Update combo timer
+    if (comboTimer > 0) {
+        comboTimer -= deltaTime;
+        if (comboTimer <= 0) {
+            resetCombo();
+        }
+    }
+    
+    // Update dynamic systems
+    updateScreenShake(deltaTime);
+    updateCamera(deltaTime);
+    
     switch (currentState) {
         case GameState::MainMenu:
             updateMainMenu(deltaTime);
@@ -591,8 +609,28 @@ void Game::updateMainMenu(float deltaTime) {
 }
 
 void Game::updatePlaying(float deltaTime) {
+    // 🎮 REAL-TIME UPDATES - Continuous animations even without player input
+    
+    // Update player dash cooldown and timers
     if (player) {
         player->update(deltaTime);
+    }
+    
+    // Update enemy AI with player position for detection/chase
+    if (enemyManager && player) {
+        Position playerPos = player->getPosition();
+        // Set player position as target for all enemies (for detection)
+        for (auto& enemy : enemyManager->getMutableEnemies()) {
+            enemy.targetX = playerPos.x;
+            enemy.targetY = playerPos.y;
+        }
+        // Update enemy animations, patrol, chase AI
+        enemyManager->update(deltaTime);
+    }
+    
+    // Update dungeon ambient particles (torch sparks etc)
+    if (dungeon) {
+        dungeon->updateAmbientParticles(deltaTime);
     }
 }
 
@@ -612,7 +650,7 @@ void Game::attackNearestEnemy() {
     int dy = abs(nearestEnemy->y - playerPos.y);
     int distance = dx + dy;
     
-    if (distance > 2) {
+    if (distance > ATTACK_RANGE_TILES) {
         std::cout << "[Combat] " << nearestEnemy->name << " is too far away!" << std::endl;
         uiManager->addFloatingText("Too far!", playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(150, 150, 150));
         return;
@@ -623,7 +661,7 @@ void Game::attackNearestEnemy() {
     nearestEnemy->health -= damage;
     
     // ✨ Add visual attack effect at enemy position
-    addCombatEffect("swing", nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, 0.3f);
+    addCombatEffect("swing", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_SHORT);
     
     // Show damage text at enemy position
     uiManager->addFloatingText("-" + std::to_string(damage), 
@@ -636,15 +674,30 @@ void Game::attackNearestEnemy() {
         std::cout << "[Combat] " << nearestEnemy->name << " defeated!" << std::endl;
         std::cout << "DEBUG: Enemy " << nearestEnemy->name << " died at (" << nearestEnemy->x << ", " << nearestEnemy->y << ")" << std::endl;
         
-        // ✨ Add explosion effect when enemy dies
-        addCombatEffect("explosion", nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, 0.5f);
+        // 🎮 Increment combo counter
+        incrementCombo();
         
-        // Show defeat text
-        uiManager->addFloatingText("DEFEATED!", 
-            nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, sf::Color(255, 215, 0));
+        // ✨ Add explosion effect when enemy dies - bigger on combos
+        float effectScale = 1.f + (comboCounter * 0.1f);
+        addCombatEffect("explosion", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_LONG * effectScale);
         
-        // Show XP gain
-        int xpGain = 25 + (currentFloor * 5); // More XP for deeper floors
+        // Screen shake on kill
+        applyScreenShake(5.f + comboCounter * 0.5f, 0.2f);
+        
+        // 🎮 Update UI combo display
+        if (uiManager) {
+            uiManager->setCombo(comboCounter);
+        }
+        
+        // Show defeat text with combo
+        std::string defeatMsg = comboCounter > 1 ? "x" + std::to_string(comboCounter) + " COMBO!" : "DEFEATED!";
+        sf::Color defeatColor = comboCounter > 3 ? sf::Color(255, 100, 100) : sf::Color(255, 215, 0);
+        uiManager->addFloatingText(defeatMsg, 
+            nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, defeatColor);
+        
+        // Show XP gain with combo bonus
+        int xpGain = BASE_XP_GAIN + (currentFloor * XP_PER_FLOOR); // More XP for deeper floors
+        xpGain = static_cast<int>(xpGain * (1.f + comboCounter * COMBO_DAMAGE_MULT));  // Combo XP bonus
         uiManager->addFloatingText("+" + std::to_string(xpGain) + " XP", 
             playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(100, 255, 100));
         
@@ -674,8 +727,20 @@ void Game::attackNearestEnemy() {
                 std::cout << "INFO: Spawned loot " << dropId << " at (" << nearestEnemy->x << ", " << nearestEnemy->y << ")" << std::endl;
             }
         } else {
-            // Fallback to old system if no drop table
-            dropItemFromEnemy(nearestEnemy->name, nearestEnemy->x, nearestEnemy->y);
+            // CHANGE: 2025-12-04 - Use new weighted random loot table generator (DSA)
+            // Generates variety in drops based on enemy level and floor
+            int enemyLevel = std::max(1, nearestEnemy->maxHealth / 20);  // Estimate level from HP
+            auto lootTable = ItemManager::getInstance().generateLootTable(enemyLevel, currentFloor, 2);
+            
+            for (const auto& item : lootTable) {
+                spawnLootAt(sf::Vector2i(nearestEnemy->x, nearestEnemy->y), item);
+                std::cout << "[Loot] Dropped " << item.name << " (" << item.getRarityName() << ")" << std::endl;
+            }
+            
+            // Fallback gold drop if no items dropped
+            if (lootTable.empty()) {
+                dropItemFromEnemy(nearestEnemy->name, nearestEnemy->x, nearestEnemy->y);
+            }
         }
         
         enemyManager->removeEnemy(nearestEnemy->id);
@@ -732,7 +797,7 @@ void Game::activateSkill(int hotkey) {
         EnemyData* nearestEnemy = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
         if (nearestEnemy) {
             // ✨ Large swing effect for slash
-            addCombatEffect("large_swing", nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, 0.4f);
+            addCombatEffect("large_swing", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_MEDIUM);
             
             int totalDamage = player->attackEnemy() + skill->damage;
             nearestEnemy->health -= totalDamage;
@@ -740,7 +805,7 @@ void Game::activateSkill(int hotkey) {
                 nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, sf::Color(255, 200, 50));
             
             if (nearestEnemy->health <= 0) {
-                addCombatEffect("explosion", nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, 0.5f);
+                addCombatEffect("explosion", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_LONG);
                 enemyManager->removeEnemy(nearestEnemy->id);
                 checkExitAccess();
             }
@@ -750,7 +815,7 @@ void Game::activateSkill(int hotkey) {
         EnemyData* nearestEnemy = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
         if (nearestEnemy) {
             // ✨ Large swing + explosion for power strike
-            addCombatEffect("large_swing", nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, 0.4f);
+            addCombatEffect("large_swing", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_MEDIUM);
             
             int totalDamage = player->attackEnemy() + skill->damage;
             nearestEnemy->health -= totalDamage;
@@ -758,7 +823,7 @@ void Game::activateSkill(int hotkey) {
                 nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, sf::Color(255, 100, 0));
             
             if (nearestEnemy->health <= 0) {
-                addCombatEffect("magic_explosion", nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, 0.6f);
+                addCombatEffect("magic_explosion", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_EXTRA_LONG);
                 enemyManager->removeEnemy(nearestEnemy->id);
                 checkExitAccess();
             }
@@ -771,7 +836,7 @@ void Game::activateSkill(int hotkey) {
             int dy = abs(enemy.y - playerPos.y);
             if (dx <= 1 && dy <= 1) {  // Adjacent tiles
                 // ✨ Swing effect for each hit enemy
-                addCombatEffect("swing", enemy.x * 32.0f, enemy.y * 32.0f, 0.3f);
+                addCombatEffect("swing", enemy.x * TILE_SIZE, enemy.y * TILE_SIZE, EFFECT_DURATION_SHORT);
                 
                 const_cast<EnemyData&>(enemy).health -= skill->damage;
                 uiManager->addFloatingText("-" + std::to_string(skill->damage), 
@@ -780,7 +845,7 @@ void Game::activateSkill(int hotkey) {
             }
         }
         // ✨ Large swing at player position for whirlwind visual
-        addCombatEffect("large_swing", playerPos.x * 32.0f, playerPos.y * 32.0f, 0.5f);
+        addCombatEffect("large_swing", playerPos.x * TILE_SIZE, playerPos.y * TILE_SIZE, EFFECT_DURATION_LONG);
         
         uiManager->addFloatingText("WHIRLWIND! (x" + std::to_string(enemiesHit) + ")", 
             playerPos.x * 32.0f, playerPos.y * 32.0f - 20.0f, sf::Color(255, 255, 100));
@@ -1046,9 +1111,70 @@ void Game::render() {
             }
         }
         
-        // Apply lighting effect (dark overlay with light around player)
-        if (player && renderer->isLightingEnabled()) {
-            renderer->applyLighting(*player);
+        // Apply lighting with multi-light support
+        if (renderer->isLightingEnabled()) {
+            renderer->clearLights();
+            
+            // 1. Add Player Torch
+            if (player) {
+                Position pPos = player->getPosition();
+                Renderer::Light playerLight(
+                    sf::Vector2f(pPos.x * 32.0f + 16.0f, pPos.y * 32.0f + 16.0f),
+                    sf::Color(255, 200, 150),  // Warm orange torch light
+                    300.0f,                     // 300px radius
+                    1.0f                        // Full intensity
+                );
+                playerLight.flickerSpeed = 5.0f;
+                playerLight.flickerRange = 0.1f;
+                renderer->addLight(playerLight);
+            }
+            
+            // 2. Add Enemy Lights
+            if (enemyManager) {
+                for (const auto& enemy : enemyManager->getEnemies()) {
+                    sf::Color glowColor = sf::Color(255, 50, 50);  // Default red
+                    float radius = 100.0f;
+                    float intensity = 0.6f;
+                    
+                    if (enemy.type == "ranged") {
+                        glowColor = sf::Color(100, 50, 255);  // Purple for ranged
+                        radius = 120.0f;
+                    } else if (enemy.type == "boss") {
+                        glowColor = sf::Color(255, 100, 0);  // Orange/Fire for bosses
+                        radius = 180.0f;
+                        intensity = 0.8f;
+                    }
+                    
+                    Renderer::Light enemyLight(
+                        sf::Vector2f(enemy.x * 32.0f + 16.0f, enemy.y * 32.0f + 16.0f),
+                        glowColor,
+                        radius,
+                        intensity
+                    );
+                    renderer->addLight(enemyLight);
+                }
+            }
+            
+            // 3. Add Rare Loot Lights (rarity >= 3)
+            for (const auto& loot : loots) {
+                if (loot.getItem().rarity >= 3) {
+                    Renderer::Light lootLight(
+                        sf::Vector2f(loot.getX() * 32.0f + 16.0f, loot.getY() * 32.0f + 16.0f),
+                        loot.getItem().getRarityColor(),
+                        80.0f,
+                        0.5f
+                    );
+                    renderer->addLight(lootLight);
+                }
+            }
+            
+            // Update light animations using totalTime
+            renderer->updateLights(totalTime);
+            
+            // Apply lighting shader
+            if (player) {
+                renderer->applyLighting(*player);
+            }
         }
         
         // ✨ Render combat effects after entities but before UI
@@ -1371,7 +1497,7 @@ void Game::nextFloor() {
 }
 
 void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
-    // CHANGE: 2025-11-14 - Unified to use ItemNew system only (deprecated old Item)
+    // CHANGE: 2025-12-05 - Refactored to use ItemManager.getItemById() for proper item icons
     // Random chance for item drop (50% for regular enemies, 100% for bosses)
     int dropChance = rand() % 100;
     bool isBoss = (enemyName.find("Dragon") != std::string::npos || 
@@ -1380,73 +1506,77 @@ void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
                    enemyName.find("Necromancer") != std::string::npos);
     
     if (dropChance < 50 || isBoss) {
-        ItemNew droppedItem;  // Use ItemNew instead of old Item
+        ItemNew droppedItem;
         
-        // Floor-based loot table (ItemNew system)
+        // Floor-based loot table using ItemManager for proper icons
+        // Get items from database instead of creating inline
+        auto& itemMgr = ItemManager::getInstance();
+        int itemRoll = rand() % 100;
+        
         if (currentFloor <= 2) {
             // Early floors: Basic items
-            int itemRoll = rand() % 100;
             if (itemRoll < 40) {
-                droppedItem = ItemNew("potion", "Health Potion", "consumable", 1, 50,
-                    ItemAction("heal", {{{"amount", 50}}}));
+                droppedItem = itemMgr.getItemById("potion");
             } else if (itemRoll < 60) {
-                droppedItem = ItemNew("coin_gold", "Gold Coin", "treasure", 1, 100);
+                droppedItem = itemMgr.getItemById("gem_ruby");  // Use gem_ruby for gold drops
             } else if (itemRoll < 80) {
-                droppedItem = ItemNew("sword_iron", "Iron Sword", "weapon", 2, 50);
+                droppedItem = itemMgr.getItemById("sword_iron");
             } else {
-                droppedItem = ItemNew("shield_wood", "Wooden Shield", "armor", 1, 30);
+                droppedItem = itemMgr.getItemById("shield");  // Fixed: shield not shield_wood
             }
         } else if (currentFloor <= 4) {
             // Mid floors: Better items
-            int itemRoll = rand() % 100;
             if (itemRoll < 30) {
-                droppedItem = ItemNew("potion_mega", "Mega Potion", "consumable", 2, 75,
-                    ItemAction("heal", {{{"amount", 150}}}));
+                droppedItem = itemMgr.getItemById("potion_mega");
             } else if (itemRoll < 50) {
-                droppedItem = ItemNew("potion_strength", "Strength Potion", "consumable", 2, 100,
-                    ItemAction("buff", {{{"stat", "attack"}}, {{"amount", 5}}, {{"duration", 10.0}}}));
+                droppedItem = itemMgr.getItemById("potion_strength");
             } else if (itemRoll < 70) {
-                droppedItem = ItemNew("sword_flame", "Flame Sword", "weapon", 3, 200);
+                droppedItem = itemMgr.getItemById("sword_flame");
             } else if (itemRoll < 85) {
-                droppedItem = ItemNew("shield_iron", "Iron Shield", "armor", 2, 80);
+                droppedItem = itemMgr.getItemById("cloak");  // Fixed: use cloak instead of shield_iron
             } else {
-                droppedItem = ItemNew("frost_bomb", "Frost Bomb", "consumable", 3, 90,
-                    ItemAction("attack", {{{"type", "frost"}}, {{"damage", 40}}}));
+                droppedItem = itemMgr.getItemById("frost_bomb");
             }
         } else if (currentFloor <= 7) {
             // Deep floors: Advanced items
-            int itemRoll = rand() % 100;
             if (itemRoll < 25) {
-                droppedItem = ItemNew("elixir", "Elixir", "consumable", 3, 150,
-                    ItemAction("heal", {{{"amount", 100}}}));
+                droppedItem = itemMgr.getItemById("elixir");
             } else if (itemRoll < 45) {
-                droppedItem = ItemNew("fire_scroll", "Fire Scroll", "consumable", 4, 150,
-                    ItemAction("attack", {{{"type", "fire"}}, {{"damage", 100}}}));
+                droppedItem = itemMgr.getItemById("fire_scroll");
             } else if (itemRoll < 65) {
-                droppedItem = ItemNew("holy_water", "Holy Water", "consumable", 3, 120,
-                    ItemAction("attack", {{{"type", "holy"}}, {{"damage", 80}}}));
+                droppedItem = itemMgr.getItemById("holy_water");
             } else if (itemRoll < 80) {
-                droppedItem = ItemNew("amulet_wisdom", "Amulet of Wisdom", "accessory", 3, 120);
+                droppedItem = itemMgr.getItemById("amulet_wisdom");
             } else {
-                droppedItem = ItemNew("lightning_rod", "Lightning Rod", "weapon", 4, 180);
+                droppedItem = itemMgr.getItemById("lightning_rod");
             }
         } else {
             // Legendary floors: Epic loot
-            int itemRoll = rand() % 100;
             if (itemRoll < 20) {
-                droppedItem = ItemNew("revive_scroll", "Scroll of Resurrection", "utility", 5, 500);
+                droppedItem = itemMgr.getItemById("elixir");  // Fixed: use elixir instead of revive_scroll
             } else if (itemRoll < 40) {
-                droppedItem = ItemNew("sword_legendary", "Legendary Blade", "weapon", 5, 1000);
+                droppedItem = itemMgr.getItemById("sword_legendary");
             } else if (itemRoll < 60) {
-                droppedItem = ItemNew("armor_dragon", "Dragon Scale Armor", "armor", 5, 800);
+                droppedItem = itemMgr.getItemById("armor_dragon");
             } else if (itemRoll < 80) {
-                droppedItem = ItemNew("amulet_health", "Amulet of Vitality", "accessory", 4, 300);
+                droppedItem = itemMgr.getItemById("amulet_health");
             } else {
-                droppedItem = ItemNew("gem_ruby", "Ruby Gem", "treasure", 5, 250);
+                droppedItem = itemMgr.getItemById("gem_ruby");
             }
         }
         
-        // Spawn loot on ground instead of direct inventory
+        // Fallback to potion if item not found in database
+        if (droppedItem.id.empty()) {
+            droppedItem = itemMgr.getItemById("potion");
+            if (droppedItem.id.empty()) {
+                // Last resort: create inline potion with icon path
+                droppedItem = ItemNew("potion", "Health Potion", "consumable", 1, 50,
+                    ItemAction("heal", {{{"amount", 50}}}),
+                    "assets/kenney/tiles_packed.png");
+            }
+        }
+        
+        // Spawn loot on ground
         spawnLootAt(sf::Vector2i(x, y), droppedItem);
         
         // Show floating text
@@ -1454,7 +1584,7 @@ void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
             x * 32.0f, y * 32.0f - 20.0f, sf::Color(255, 215, 0));
         
         std::cout << "[Loot] " << droppedItem.name << " (" << droppedItem.getRarityName() 
-                  << ") dropped by " << enemyName << std::endl;
+                  << ") dropped by " << enemyName << " - Icon: " << droppedItem.iconPath << std::endl;
     }
 }
 
@@ -1483,50 +1613,30 @@ void Game::updateCombatEffects(float deltaTime) {
 void Game::renderCombatEffects() {
     if (!renderer) return;
     
+    // Effect type to texture key mapping
+    static const std::unordered_map<std::string, std::string> effectTextures = {
+        {"swing", "effect_attack_swing"}, {"large_swing", "effect_attack_large"},
+        {"explosion", "effect_explosion"}, {"fire_explosion", "effect_fire_explosion"},
+        {"magic_explosion", "effect_magic_explosion"}, {"arrow", "effect_arrow"},
+        {"acid", "effect_acid"}, {"ghost_orb", "effect_ghost_orb"}
+    };
+    
     for (const auto& effect : activeEffects) {
-        // Get appropriate texture based on effect type
-        std::string textureKey;
+        auto it = effectTextures.find(effect.effectType);
+        if (it == effectTextures.end()) continue;
         
-        if (effect.effectType == "swing") {
-            textureKey = "effect_attack_swing";
-        } else if (effect.effectType == "large_swing") {
-            textureKey = "effect_attack_large";
-        } else if (effect.effectType == "explosion") {
-            textureKey = "effect_explosion";
-        } else if (effect.effectType == "fire_explosion") {
-            textureKey = "effect_fire_explosion";
-        } else if (effect.effectType == "magic_explosion") {
-            textureKey = "effect_magic_explosion";
-        } else if (effect.effectType == "arrow") {
-            textureKey = "effect_arrow";
-        } else if (effect.effectType == "acid") {
-            textureKey = "effect_acid";
-        } else if (effect.effectType == "ghost_orb") {
-            textureKey = "effect_ghost_orb";
-        } else {
-            continue;  // Unknown effect type
-        }
+        sf::Texture* texture = AssetManager::getInstance().getTexture(it->second);
+        if (!texture) continue;
         
-        sf::Texture* texture = AssetManager::getInstance().getTexture(textureKey);
-        // CHANGE: 2025-11-14 - Add null check for failed texture loading
-        if (!texture) {
-            std::cerr << "[Error] Failed to load combat effect texture: " << textureKey << std::endl;
-            continue;  // Skip rendering if texture failed to load
-        }
-        if (texture) {
-            sf::Sprite effectSprite(*texture);
-            effectSprite.setPosition(sf::Vector2f(effect.x, effect.y));
-            
-            // Calculate fade based on remaining lifetime
-            float alpha = (effect.lifetime / effect.maxLifetime) * 255.0f;
-            effectSprite.setColor(sf::Color(255, 255, 255, static_cast<unsigned char>(alpha)));
-            
-            // Scale effect to 32x32 tile size
-            float scale = 32.0f / texture->getSize().x;
-            effectSprite.setScale(sf::Vector2f(scale, scale));
-            
-            window.draw(effectSprite);
-        }
+        sf::Sprite effectSprite(*texture);
+        effectSprite.setPosition(sf::Vector2f(effect.x, effect.y));
+        
+        float alpha = (effect.lifetime / effect.maxLifetime) * 255.0f;
+        effectSprite.setColor(sf::Color(255, 255, 255, static_cast<unsigned char>(alpha)));
+        
+        float scale = 32.0f / texture->getSize().x;
+        effectSprite.setScale(sf::Vector2f(scale, scale));
+        window.draw(effectSprite);
     }
 }
 
@@ -1583,4 +1693,71 @@ void Game::updateLoots(float deltaTime) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// DYNAMIC GAME SYSTEMS - Screen shake, combos, camera, FPS
+// ═══════════════════════════════════════════════════════════════════════
 
+void Game::applyScreenShake(float intensity, float duration) {
+    screenShakeIntensity = intensity;
+    screenShakeTimer = duration;
+}
+
+void Game::updateScreenShake(float deltaTime) {
+    if (screenShakeTimer > 0) {
+        screenShakeTimer -= deltaTime;
+        screenShakeIntensity *= (1.f - SCREEN_SHAKE_DECAY * deltaTime);
+        if (screenShakeTimer <= 0) {
+            screenShakeIntensity = 0.f;
+        }
+    }
+}
+
+void Game::updateCamera(float deltaTime) {
+    if (!player) return;
+    
+    // Calculate camera target based on player position
+    Position playerPos = player->getPosition();
+    cameraTarget.x = playerPos.x * TILE_SIZE - WINDOW_WIDTH / 2.f + TILE_SIZE / 2.f;
+    cameraTarget.y = playerPos.y * TILE_SIZE - WINDOW_HEIGHT / 2.f + TILE_SIZE / 2.f;
+    
+    // Smooth lerp to target
+    float lerpFactor = 1.f - std::exp(-CAMERA_LERP_SPEED * deltaTime);
+    cameraOffset.x += (cameraTarget.x - cameraOffset.x) * lerpFactor;
+    cameraOffset.y += (cameraTarget.y - cameraOffset.y) * lerpFactor;
+    
+    // Apply screen shake
+    if (screenShakeTimer > 0) {
+        float shakeX = (static_cast<float>(std::rand() % 100) / 50.f - 1.f) * screenShakeIntensity;
+        float shakeY = (static_cast<float>(std::rand() % 100) / 50.f - 1.f) * screenShakeIntensity;
+        cameraOffset.x += shakeX;
+        cameraOffset.y += shakeY;
+    }
+}
+
+void Game::incrementCombo() {
+    comboCounter++;
+    comboTimer = COMBO_TIMEOUT;
+    
+    // Apply combo damage bonus
+    float comboBonus = 1.f + (comboCounter * COMBO_DAMAGE_MULT);
+    std::cout << "[Combo] x" << comboCounter << " (damage +" << static_cast<int>((comboBonus - 1.f) * 100) << "%)" << std::endl;
+    
+    // Screen shake on high combos
+    if (comboCounter >= 5) {
+        applyScreenShake(3.f + comboCounter * 0.5f, 0.15f);
+    }
+}
+
+void Game::resetCombo() {
+    if (comboCounter > 0) {
+        std::cout << "[Combo] Reset (was x" << comboCounter << ")" << std::endl;
+    }
+    comboCounter = 0;
+    comboTimer = 0.f;
+}
+
+void Game::setTargetFPS(float fps) {
+    targetFPS = std::max(static_cast<float>(FRAMERATE_MIN), std::min(fps, static_cast<float>(FRAMERATE_MAX)));
+    window.setFramerateLimit(static_cast<unsigned int>(targetFPS));
+    std::cout << "[FPS] Target set to " << targetFPS << std::endl;
+}

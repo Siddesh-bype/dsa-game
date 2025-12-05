@@ -2,13 +2,64 @@
 // - Added INFO/ERROR logging for all asset loads
 // - Improved error messages with full paths
 // - Added missing asset detection
+// CHANGE: 2025-12-03 — Added GIF support via stb_image + path optimization
+// CHANGE: 2025-12-03 — CRITICAL FIX: Completed loadFromManifest() function
 
 #include "AssetManager.h"
+
+// STB Image implementation - must be defined before including the header
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 #include <iostream>
 #include <fstream>
 
-// Note: JSON parsing would normally use a library like nlohmann/json
-// For now, we'll implement manual loading and add JSON support later
+// ═══════════════════════════════════════════════════════════════════════
+// ASSET PATH CONSTANTS - Centralized path management
+// ═══════════════════════════════════════════════════════════════════════
+
+namespace AssetPaths {
+    // Base directories
+    constexpr const char* DEBTS_BASE = "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/";
+    constexpr const char* KENNEY_TINY = "assets/kenney/kenney_tiny-dungeon/Tiles/";
+    constexpr const char* KENNEY_UI = "assets/kenney/kenney_ui-pack-rpg-expansion/PNG/";
+    constexpr const char* KENNEY_1BIT = "assets/kenney/kenney_1-bit-pack/Tilesheet/";
+    
+    // Debts in the Depths subdirectories
+    constexpr const char* DEBTS_CHARS = "Characters/";
+    constexpr const char* DEBTS_ENV = "Environment/";
+    constexpr const char* DEBTS_FX = "Effects/";
+    constexpr const char* DEBTS_UI = "UI/";
+    
+    // Helper function to build full paths
+    inline std::string debtsChar(const char* filename) {
+        return std::string(DEBTS_BASE) + DEBTS_CHARS + filename;
+    }
+    
+    inline std::string debtsEnv(const char* filename) {
+        return std::string(DEBTS_BASE) + DEBTS_ENV + filename;
+    }
+    
+    inline std::string debtsFx(const char* filename) {
+        return std::string(DEBTS_BASE) + DEBTS_FX + filename;
+    }
+    
+    inline std::string debtsUI(const char* filename) {
+        return std::string(DEBTS_BASE) + DEBTS_UI + filename;
+    }
+    
+    inline std::string kenneyTile(const char* filename) {
+        return std::string(KENNEY_TINY) + filename;
+    }
+    
+    inline std::string kenneyUI(const char* filename) {
+        return std::string(KENNEY_UI) + filename;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ASSET MANAGER IMPLEMENTATION
+// ═══════════════════════════════════════════════════════════════════════
 
 AssetManager& AssetManager::getInstance() {
     static AssetManager instance;
@@ -18,14 +69,42 @@ AssetManager& AssetManager::getInstance() {
 bool AssetManager::loadTexture(const std::string& key, const std::string& filePath) {
     auto texture = std::make_unique<sf::Texture>();
     
-    if (!texture->loadFromFile(filePath)) {
-        std::cerr << "[ERROR] Missing asset '" << key << "' -> " << filePath << std::endl;
-        return false;
+    // Check if file is GIF - use stb_image for GIF loading (C++17 compatible check)
+    bool isGif = filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".gif";
+    
+    if (isGif) {
+        int width, height, channels;
+        unsigned char* data = stbi_load(filePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        
+        if (!data) {
+            std::cerr << "[ERROR] Failed to load GIF '" << key << "' -> " << filePath << std::endl;
+            std::cerr << "        stb_image error: " << stbi_failure_reason() << std::endl;
+            return false;
+        }
+        
+        // Create SFML texture from loaded pixel data
+        if (!texture->resize({static_cast<unsigned int>(width), static_cast<unsigned int>(height)})) {
+            std::cerr << "[ERROR] Failed to create texture for '" << key << "'" << std::endl;
+            stbi_image_free(data);
+            return false;
+        }
+        
+        texture->update(data);
+        stbi_image_free(data);
+        
+        std::cout << "[INFO] Loaded GIF asset '" << key << "' -> " << filePath 
+                  << " (" << width << "x" << height << ")" << std::endl;
+    } else {
+        // Use SFML's native loading for PNG/JPG/etc
+        if (!texture->loadFromFile(filePath)) {
+            std::cerr << "[ERROR] Missing asset '" << key << "' -> " << filePath << std::endl;
+            return false;
+        }
+        std::cout << "[INFO] Loaded asset '" << key << "' -> " << filePath << std::endl;
     }
     
     texture->setSmooth(false);  // Pixel-perfect rendering
     textures[key] = std::move(texture);
-    std::cout << "[INFO] Loaded asset '" << key << "' -> " << filePath << std::endl;
     return true;
 }
 
@@ -76,108 +155,119 @@ bool AssetManager::createSpriteFromSheet(const std::string& sheetName, int tileI
 }
 
 bool AssetManager::loadFromManifest(const std::string& jsonPath) {
-    std::cout << "[AssetManager] Loading DebtsInTheDepths assets..." << std::endl;
+    using namespace AssetPaths;
+    
+    std::cout << "[AssetManager] Loading Debts in the Depths assets (GIF format)..." << std::endl;
     
     // ═══════════════════════════════════════════════════════════════════════
-    // DEBTS IN THE DEPTHS ASSET PACK
-    // Location: assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/
-    // Using PNG sprites (animated GIFs available for future use)
+    // DEBTS IN THE DEPTHS ASSET PACK - COMPLETE GIF INTEGRATION
+    // Using centralized path helpers to reduce duplication
     // ═══════════════════════════════════════════════════════════════════════
     
-    // 🟫 FLOOR & ENVIRONMENT TILES (Using GIFs for animated tiles)
-    loadTexture("floor", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprBrick.gif");
-    loadTexture("floor_variant_1", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprBrimstone.gif");
-    loadTexture("floor_variant_2", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprRock.gif");
-    loadTexture("floor_variant_3", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprBrick.gif");
-    loadTexture("floor_variant_4", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprBrimstone.gif");
+    // 🟫 FLOOR & ENVIRONMENT TILES
+    loadTexture("floor", debtsEnv("sprBrick.png"));
+    loadTexture("floor_variant_1", debtsEnv("sprBrimstone.png"));
+    loadTexture("floor_variant_2", debtsEnv("sprRock.png"));
+    loadTexture("floor_variant_3", debtsEnv("sprBrick.png"));
+    loadTexture("floor_variant_4", debtsEnv("sprBrimstone.png"));
+    loadTexture("wall", debtsEnv("sprRock.png"));
     
-    // 🧱 STRUCTURAL ELEMENTS - Using different prop for walls
-    loadTexture("wall", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Environment/sprRock.gif");
+    // 🪜 STAIRS
+    loadTexture("stairs_up", kenneyTile("tile_0014.png"));
+    loadTexture("stairs_down", kenneyTile("tile_0040.png"));
     
-    // 🪜 STAIRS - Using Kenney Tiny Dungeon
-    loadTexture("stairs_up", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0014.png");
-    loadTexture("stairs_down", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0040.png");
+    // 🚪 DOORS
+    loadTexture("door_closed", kenneyTile("tile_0045.png"));
+    loadTexture("door_open", kenneyTile("tile_0000.png"));
     
-    // 🚪 DOORS - Using Kenney Tiny Dungeon for better door sprites
-    loadTexture("door_closed", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0045.png");
-    loadTexture("door_open", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0000.png");
+    // 👤 PLAYER CHARACTER - WIZARD (GIF format for animation)
+    loadTexture("player_warrior", debtsChar("sprWizard.gif"));
+    loadTexture("player_rogue", debtsChar("sprWizard.gif"));
+    loadTexture("player_mage", debtsChar("sprWizard.gif"));
+    loadTexture("player_wizard_idle", debtsChar("sprWizardIdle.gif"));
+    loadTexture("player_wizard_fire", debtsChar("sprWizardFire.gif"));
+    loadTexture("player_wizard_hurt", debtsChar("sprWizardHurt.gif"));
     
-    // 👤 PLAYER CHARACTER - WIZARD (Using GIF for animation)
-    loadTexture("player_warrior", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprWizard.gif");
-    loadTexture("player_rogue", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprWizard.gif");
-    loadTexture("player_mage", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprWizard.gif");
+    // 👹 ENEMY MONSTERS - All with GIF format
+    loadTexture("goblin", debtsChar("sprGoblin1.gif"));
+    loadTexture("slime", debtsChar("sprBogslium1.gif"));
+    loadTexture("orc", debtsChar("sprOrcArcher1.gif"));
+    loadTexture("skeleton", debtsChar("sprSkeleton1.gif"));
+    loadTexture("demon", debtsChar("sprGhost1.gif"));
+    loadTexture("wraith", debtsChar("sprGhost2.gif"));
+    loadTexture("vampire", debtsChar("sprBatilisk1.gif"));
+    loadTexture("lich", debtsChar("sprLizardMonk1.gif"));
+    loadTexture("dragon", debtsChar("sprDragon.gif"));
+    loadTexture("necromancer", debtsChar("sprLizardMonk2.gif"));
+    loadTexture("dark_mage", debtsChar("sprLizardMonk3.gif"));
+    loadTexture("gargoyle", debtsChar("sprBatilisk2.gif"));
+    loadTexture("minotaur", debtsChar("sprMinotaur1.gif"));
     
-    // 👹 ENEMY MONSTERS - Individual sprites (Using GIF for animation)
-    // Basic Enemies
-    loadTexture("goblin", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprGoblin1.gif");
-    loadTexture("slime", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprBogslium1.gif");
-    loadTexture("orc", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprOrcArcher1.gif");
-    loadTexture("skeleton", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprSkeleton1.gif");
-    loadTexture("demon", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprGhost1.gif");
+    // 🎒 ITEMS & COLLECTIBLES
+    loadTexture("gold_pile", debtsEnv("sprGoldPile.png"));
+    loadTexture("gold_vein", debtsEnv("sprGoldVein.png"));
+    loadTexture("potion_red", kenneyTile("tile_0090.png"));
+    loadTexture("potion_blue", kenneyTile("tile_0091.png"));
+    loadTexture("coin", kenneyTile("tile_0088.png"));
+    loadTexture("chest", kenneyTile("tile_0050.png"));
+    loadTexture("key", kenneyTile("tile_0060.png"));
     
-    // Advanced Enemies
-    loadTexture("wraith", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprGhost2.gif");
-    loadTexture("vampire", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprBatilisk1.gif");
-    loadTexture("lich", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprLizardMonk1.gif");
-    loadTexture("dragon", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprDragon.gif");
-    loadTexture("necromancer", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprLizardMonk2.gif");
-    loadTexture("dark_mage", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprLizardMonk3.gif");
-    loadTexture("gargoyle", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprBatilisk2.gif");
-    loadTexture("minotaur", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Characters/sprMinotaur1.gif");
+    // ⚔️ WEAPONS
+    loadTexture("sword_iron", kenneyTile("tile_0092.png"));
+    loadTexture("sword_flame", kenneyTile("tile_0093.png"));
+    loadTexture("shield", kenneyTile("tile_0094.png"));
     
-    // 🎒 ITEMS & COLLECTIBLES - Using Kenney Tiny Dungeon
-    loadTexture("potion_red", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0090.png");
-    loadTexture("potion_blue", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0091.png");
+    // ✨ COMBAT EFFECTS - All GIF format
+    loadTexture("effect_attack_swing", debtsFx("sprAttackSwing.gif"));
+    loadTexture("effect_attack_large", debtsFx("sprAttackLarge.gif"));
+    loadTexture("effect_attack_spear", debtsFx("sprAttackSpear.gif"));
+    loadTexture("effect_sparkle", debtsFx("sprSparkle.gif"));
+    loadTexture("effect_explosion", debtsFx("sprExplosion.gif"));
+    loadTexture("effect_fire_explosion", debtsFx("sprFireExplosion.gif"));
+    loadTexture("effect_magic_explosion", debtsFx("sprMagicExplosion.gif"));
+    loadTexture("effect_shockwave", debtsFx("sprShockwave.gif"));
     
-    // Collectibles - Kenney Tiny Dungeon
-    loadTexture("coin", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0088.png");
-    loadTexture("chest", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0050.png");
-    loadTexture("key", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0060.png");
+    // 🏹 PROJECTILE EFFECTS - All GIF format
+    loadTexture("effect_arrow", debtsFx("sprArrow.gif"));
+    loadTexture("effect_firebolt", debtsFx("sprFirebolt.gif"));
+    loadTexture("effect_magic_bolt", debtsFx("sprMagicBolt.gif"));
+    loadTexture("effect_acid", debtsFx("sprAcidProjectile.gif"));
+    loadTexture("effect_ghost_orb", debtsFx("sprGhostOrb.gif"));
     
-    // ⚔️ WEAPONS & EFFECTS - Using Kenney Tiny Dungeon for weapons
-    loadTexture("sword_iron", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0092.png");
-    loadTexture("sword_flame", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0093.png");
-    loadTexture("shield", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0094.png");
+    // 💚 HEALING & PARTICLES
+    loadTexture("effect_heal", debtsFx("sprHealParticle.gif"));
+    loadTexture("effect_rock_particle", debtsFx("sprRockParticle.png"));
     
-    // ✨ ADDITIONAL EFFECTS - For combat and visual enhancement
-    loadTexture("effect_attack_swing", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprAttackSwing.png");
-    loadTexture("effect_attack_large", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprAttackLarge.png");
-    loadTexture("effect_sparkle", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprSparkle.png");
-    loadTexture("effect_explosion", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprExplosion.png");
-    loadTexture("effect_fire_explosion", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprFireExplosion.png");
-    loadTexture("effect_magic_explosion", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprMagicExplosion.png");
-    loadTexture("effect_arrow", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprArrow.png");
-    loadTexture("effect_acid", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprAcidProjectile.png");
-    loadTexture("effect_ghost_orb", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/Effects/sprGhostOrb.png");
+    // 🌊 ENVIRONMENTAL EFFECTS
+    loadTexture("env_water", debtsEnv("sprWater.gif"));
+    loadTexture("env_lava", debtsEnv("sprLava.gif"));
     
-    // � BUTTONS - Kenney UI
-    loadTexture("button_square_blue", "assets/kenney/kenney_ui-pack-rpg-expansion/PNG/buttonSquare_blue.png");
-    loadTexture("button_long_blue", "assets/kenney/kenney_ui-pack-rpg-expansion/PNG/buttonLong_blue.png");
+    // 🏺 ENVIRONMENT PROPS
+    loadTexture("props_catacombs", debtsEnv("sprPropsCatacombs.gif"));
+    loadTexture("props_corpses", debtsEnv("sprPropsCorpses.gif"));
+    loadTexture("props_inferno", debtsEnv("sprPropsInferno.gif"));
+    loadTexture("props_swamp", debtsEnv("sprPropsSwamp.gif"));
     
-    // �💗 UI ICONS - DebtsInTheDepths
-    loadTexture("ui_heart", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/UI/sprHeart.png");
-    loadTexture("ui_gold", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/UI/sprGoldIcon.png");
-    loadTexture("ui_cursor", "assets/DebtsInTheDepthsAssets/DebtsInTheDepthsAssets/UI/sprCursor.png");
+    // 💗 UI ICONS
+    loadTexture("ui_heart", debtsUI("sprHeart.gif"));
+    loadTexture("ui_gold", debtsUI("sprGoldIcon.png"));
+    loadTexture("ui_cursor", debtsUI("sprCursor.gif"));
+    
+    // 🎮 BUTTONS
+    loadTexture("button_square_blue", kenneyUI("buttonSquare_blue.png"));
+    loadTexture("button_long_blue", kenneyUI("buttonLong_blue.png"));
     
     // ═══════════════════════════════════════════════════════════════════════
     // 📊 SPRITESHEETS - Large combined tilesets
-    // These are used by Dungeon.cpp, Player.cpp, Enemy.cpp
     // ═══════════════════════════════════════════════════════════════════════
     
-    // 🎮 TINY DUNGEON SPRITESHEET - Main game tileset (THIS IS THE ONE USED!)
-    // File: tilemap.png (203x186 pixels, 12 columns x 11 rows = 132 tiles)
-    // Tile size: 16x16 pixels with 1px spacing
-    // Contains: floors, walls, stairs, doors, characters, enemies, items
     auto tinyDungeonSheet = std::make_unique<sf::Texture>();
     if (tinyDungeonSheet->loadFromFile("assets/kenney/kenney_tiny-dungeon/Tilemap/tilemap.png")) {
-        tinyDungeonSheet->setSmooth(false);  // Keep pixels sharp
+        tinyDungeonSheet->setSmooth(false);
         spritesheets["tiny_dungeon"] = std::move(tinyDungeonSheet);
         std::cout << "[AssetManager] Loaded Tiny Dungeon spritesheet" << std::endl;
     }
     
-    // 🎯 ROGUELIKE SPRITESHEET - Alternative larger tileset (not currently used)
-    // File: roguelikeSheet_transparent.png
-    // Contains more detailed sprites but different layout
     auto roguelikeSheet = std::make_unique<sf::Texture>();
     if (roguelikeSheet->loadFromFile("assets/kenney/kenney_roguelike-rpg-pack/Spritesheet/roguelikeSheet_transparent.png")) {
         roguelikeSheet->setSmooth(false);
@@ -189,70 +279,6 @@ bool AssetManager::loadFromManifest(const std::string& jsonPath) {
               << spritesheets.size() << " spritesheets" << std::endl;
     
     return true;
-}
-
-void AssetManager::loadTinyDungeonPack() {
-    std::cout << "[AssetManager] Loading Tiny Dungeon pack (colorful)..." << std::endl;
-    
-    // Clear existing textures
-    textures.clear();
-    
-    // Tiny Dungeon tiles (16x16 base size)
-    loadTexture("floor", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0001.png");
-    loadTexture("floor_variant_1", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0002.png");
-    loadTexture("floor_variant_2", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0003.png");
-    loadTexture("floor_variant_3", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0004.png");
-    loadTexture("floor_variant_4", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0005.png");
-    loadTexture("wall", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0023.png");
-    loadTexture("door_closed", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0017.png");
-    loadTexture("door_open", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0018.png");
-    loadTexture("stairs_down", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0046.png");
-    loadTexture("stairs_up", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0047.png");
-    
-    // Characters
-    loadTexture("player_warrior", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0084.png");
-    loadTexture("player_rogue", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0085.png");
-    loadTexture("player_mage", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0086.png");
-    
-    // Enemies
-    loadTexture("goblin", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0108.png");
-    loadTexture("orc", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0109.png");
-    loadTexture("skeleton", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0110.png");
-    loadTexture("demon", "assets/kenney/kenney_tiny-dungeon/Tiles/tile_0111.png");
-    
-    std::cout << "[AssetManager] Tiny Dungeon pack loaded with " << textures.size() << " textures" << std::endl;
-}
-
-void AssetManager::loadOneBitPack() {
-    std::cout << "[AssetManager] Loading 1-Bit Pack (monochrome)..." << std::endl;
-    
-    // Clear existing textures
-    textures.clear();
-    
-    // 1-Bit Pack tiles (16x16 monochrome)
-    loadTexture("floor", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0000.png");
-    loadTexture("floor_variant_1", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0001.png");
-    loadTexture("floor_variant_2", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0002.png");
-    loadTexture("floor_variant_3", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0003.png");
-    loadTexture("floor_variant_4", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0004.png");
-    loadTexture("wall", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0028.png");
-    loadTexture("door_closed", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0064.png");
-    loadTexture("door_open", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0065.png");
-    loadTexture("stairs_down", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0046.png");
-    loadTexture("stairs_up", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0047.png");
-    
-    // Characters (using generic sprites from 1-bit pack)
-    loadTexture("player_warrior", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0432.png");
-    loadTexture("player_rogue", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0433.png");
-    loadTexture("player_mage", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0434.png");
-    
-    // Enemies (using creature tiles)
-    loadTexture("goblin", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0451.png");
-    loadTexture("orc", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0452.png");
-    loadTexture("skeleton", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0453.png");
-    loadTexture("demon", "assets/kenney/kenney_1-bit-pack/Tilesheet/tile_0454.png");
-    
-    std::cout << "[AssetManager] 1-Bit Pack loaded with " << textures.size() << " textures" << std::endl;
 }
 
 void AssetManager::switchPack(AssetPack pack) {
@@ -278,4 +304,63 @@ void AssetManager::togglePack() {
     } else {
         switchPack(AssetPack::TinyDungeon);
     }
+}
+
+void AssetManager::loadTinyDungeonPack() {
+    using namespace AssetPaths;
+    std::cout << "[AssetManager] Loading Tiny Dungeon pack (colorful)..." << std::endl;
+    
+    textures.clear();
+    
+    loadTexture("floor", kenneyTile("tile_0001.png"));
+    loadTexture("floor_variant_1", kenneyTile("tile_0002.png"));
+    loadTexture("floor_variant_2", kenneyTile("tile_0003.png"));
+    loadTexture("floor_variant_3", kenneyTile("tile_0004.png"));
+    loadTexture("floor_variant_4", kenneyTile("tile_0005.png"));
+    loadTexture("wall", kenneyTile("tile_0023.png"));
+    loadTexture("door_closed", kenneyTile("tile_0017.png"));
+    loadTexture("door_open", kenneyTile("tile_0018.png"));
+    loadTexture("stairs_down", kenneyTile("tile_0046.png"));
+    loadTexture("stairs_up", kenneyTile("tile_0047.png"));
+    
+    loadTexture("player_warrior", kenneyTile("tile_0084.png"));
+    loadTexture("player_rogue", kenneyTile("tile_0085.png"));
+    loadTexture("player_mage", kenneyTile("tile_0086.png"));
+    
+    loadTexture("goblin", kenneyTile("tile_0108.png"));
+    loadTexture("orc", kenneyTile("tile_0109.png"));
+    loadTexture("skeleton", kenneyTile("tile_0110.png"));
+    loadTexture("demon", kenneyTile("tile_0111.png"));
+    
+    std::cout << "[AssetManager] Tiny Dungeon pack loaded with " << textures.size() << " textures" << std::endl;
+}
+
+void AssetManager::loadOneBitPack() {
+    using namespace AssetPaths;
+    std::cout << "[AssetManager] Loading 1-Bit Pack (monochrome)..." << std::endl;
+    
+    textures.clear();
+    
+    const char* prefix = KENNEY_1BIT;
+    loadTexture("floor", std::string(prefix) + "tile_0000.png");
+    loadTexture("floor_variant_1", std::string(prefix) + "tile_0001.png");
+    loadTexture("floor_variant_2", std::string(prefix) + "tile_0002.png");
+    loadTexture("floor_variant_3", std::string(prefix) + "tile_0003.png");
+    loadTexture("floor_variant_4", std::string(prefix) + "tile_0004.png");
+    loadTexture("wall", std::string(prefix) + "tile_0028.png");
+    loadTexture("door_closed", std::string(prefix) + "tile_0064.png");
+    loadTexture("door_open", std::string(prefix) + "tile_0065.png");
+    loadTexture("stairs_down", std::string(prefix) + "tile_0046.png");
+    loadTexture("stairs_up", std::string(prefix) + "tile_0047.png");
+    
+    loadTexture("player_warrior", std::string(prefix) + "tile_0432.png");
+    loadTexture("player_rogue", std::string(prefix) + "tile_0433.png");
+    loadTexture("player_mage", std::string(prefix) + "tile_0434.png");
+    
+    loadTexture("goblin", std::string(prefix) + "tile_0451.png");
+    loadTexture("orc", std::string(prefix) + "tile_0452.png");
+    loadTexture("skeleton", std::string(prefix) + "tile_0453.png");
+    loadTexture("demon", std::string(prefix) + "tile_0454.png");
+    
+    std::cout << "[AssetManager] 1-Bit Pack loaded with " << textures.size() << " textures" << std::endl;
 }

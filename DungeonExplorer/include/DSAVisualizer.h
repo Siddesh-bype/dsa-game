@@ -23,6 +23,5 @@ public:
     void renderHeapGlow(sf::RenderWindow& window, sf::Vector2f position, int value);
     
     // Loot popup animation
-    void renderLootPopup(sf::RenderWindow& window, const std::string& itemName, 
-                        int value, float x, float y, float time);
+    void renderLootPopup(sf::RenderWindow& window, const std::string& itemName, int value, float x, float y, float time);
 };

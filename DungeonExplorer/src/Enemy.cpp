@@ -1,9 +1,15 @@
 // CHANGE: 2025-11-10 — Added adaptive AI system for progressive difficulty
 // Enemy AI scales from floors 1-10 with increasing intelligence
+// CHANGE: 2025-12-04 - Integrated A* pathfinding and GameUtils for code deduplication
 
 #include "Enemy.h"
 #include "AssetManager.h"
+#include "TileManager.h"
+#include "GameUtils.h"
+#include "DataStructures/AStar.h"
+#include "DataStructures/SpatialHash.h"
 #include <iostream>
+#include <unordered_set>
 
 EnemyManager::EnemyManager() : nextEnemyId(0) {
 }
@@ -13,11 +19,11 @@ EnemyManager::~EnemyManager() {
 
 // Calculate AI level based on floor (0=Random, 1=Chase, 2=Dijkstra, 3=Flank, 4=Boss)
 int EnemyManager::calculateAILevel(int floor) const {
-    if (floor <= 2) return 0;  // Floors 1-2: Random walk
-    if (floor <= 4) return 1;  // Floors 3-4: BFS Chase
-    if (floor <= 6) return 2;  // Floors 5-6: Dijkstra path
-    if (floor <= 8) return 3;  // Floors 7-8: Cooperative flank
-    return 4;                  // Floors 9-10: Boss AI
+    if (floor <= AI_RANDOM_MAX_FLOOR) return 0;      // Floors 1-2: Random walk
+    if (floor <= AI_CHASE_MAX_FLOOR) return 1;       // Floors 3-4: BFS Chase
+    if (floor <= AI_DIJKSTRA_MAX_FLOOR) return 2;    // Floors 5-6: Dijkstra path
+    if (floor <= AI_FLANK_MAX_FLOOR) return 3;       // Floors 7-8: Cooperative flank
+    return AI_LEVEL_BOSS;                            // Floors 9-10: Boss AI
 }
 
 void EnemyManager::setEnemyAILevel(EnemyData& enemy, int floor) {
@@ -25,7 +31,7 @@ void EnemyManager::setEnemyAILevel(EnemyData& enemy, int floor) {
     
     // Bosses always get max AI
     if (enemy.type == "boss") {
-        enemy.aiLevel = 4;
+        enemy.aiLevel = AI_LEVEL_BOSS;
     } else {
         enemy.aiLevel = calculateAILevel(floor);
     }
@@ -43,83 +49,85 @@ void EnemyManager::setEnemyAILevel(EnemyData& enemy, int floor) {
               << " (" << aiNames[enemy.aiLevel] << ") for floor " << floor << std::endl;
 }
 
+// Helper to resolve texture key from name using lookup table
+// Matches enemy names from DungeonLevelManager level definitions
+static std::string resolveTextureKey(const std::string& name) {
+    // Texture lookup pairs: {keyword, texture_key}
+    static const std::pair<const char*, const char*> textureMappings[] = {
+        // Floor 1-2: Basic enemies
+        {"Slime", "slime"}, {"Goblin", "goblin"},
+        // Floor 2-3: Undead and orcs  
+        {"Orc", "orc"}, {"Skeleton", "skeleton"},
+        // Floor 3-4: Cave and shadow
+        {"Bat", "goblin"}, {"Shadow", "wraith"}, {"Wraith", "wraith"},
+        {"Cultist", "dark_mage"},
+        // Floor 5-6: Bosses and mines
+        {"Abyss", "dragon"}, {"Golem", "gargoyle"}, {"Miner", "wraith"},
+        // Floor 7: Fortress
+        {"Armored", "orc"}, {"Specter", "wraith"}, {"Hound", "goblin"},
+        // Floor 8: Lava
+        {"Fire", "demon"}, {"Flame", "demon"}, {"Lava", "demon"}, {"Elemental", "demon"},
+        // Floor 9: Obsidian
+        {"Mage", "dark_mage"}, {"Warlord", "orc"}, {"Death Knight", "skeleton"},
+        // Floor 10: Final boss
+        {"Eternal", "dragon"}, {"Shade", "dragon"},
+        // Legacy
+        {"Vampire", "vampire"}, {"Batilisk", "vampire"}, {"Lich", "lich"},
+        {"Necromancer", "lich"}, {"Dragon", "dragon"}, {"Gargoyle", "gargoyle"},
+        {"Minotaur", "minotaur"}, {"Knight", "skeleton"}
+    };
+    
+    for (const auto& [keyword, texture] : textureMappings) {
+        if (name.find(keyword) != std::string::npos) {
+            return texture;
+        }
+    }
+    return "goblin"; // Default fallback
+}
+
 void EnemyManager::spawnEnemy(const std::string& name, const std::string& type, int x, int y, 
                               int health, int damage, int range, float speed, int floor) {
-    EnemyData enemy(nextEnemyId++, name, type, health, damage, x, y, range, speed);
+    // OPTIMIZATION: Use emplace_back for in-place construction
+    enemies.emplace_back(nextEnemyId++, name, type, health, damage, x, y, range, speed);
+    
+    EnemyData& enemy = enemies.back();
     setEnemyAILevel(enemy, floor);
     
-    // CHANGE: 2025-11-14 - Cache texture key to avoid string searches every frame
-    if (name.find("Slime") != std::string::npos || name.find("Bogslium") != std::string::npos) {
-        enemy.textureKey = "slime";
-    } else if (name.find("Goblin") != std::string::npos) {
-        enemy.textureKey = "goblin";
-    } else if (name.find("Orc") != std::string::npos) {
-        enemy.textureKey = "orc";
-    } else if (name.find("Skeleton") != std::string::npos) {
-        enemy.textureKey = "skeleton";
-    } else if (name.find("Shadow") != std::string::npos || name.find("Wraith") != std::string::npos) {
-        enemy.textureKey = "wraith";
-    } else if (name.find("Vampire") != std::string::npos || name.find("Batilisk") != std::string::npos) {
-        enemy.textureKey = "vampire";
-    } else if (name.find("Lich") != std::string::npos || name.find("Necromancer") != std::string::npos) {
-        enemy.textureKey = "lich";
-    } else if (name.find("Dragon") != std::string::npos) {
-        enemy.textureKey = "dragon";
-    } else if (name.find("Dark Mage") != std::string::npos || name.find("Mage") != std::string::npos) {
-        enemy.textureKey = "dark_mage";
-    } else if (name.find("Gargoyle") != std::string::npos) {
-        enemy.textureKey = "gargoyle";
-    } else if (name.find("Minotaur") != std::string::npos) {
-        enemy.textureKey = "minotaur";
-    } else if (type == "boss") {
-        enemy.textureKey = "dragon";
+    // 🎮 Initialize visual and patrol positions
+    enemy.visualX = static_cast<float>(x);
+    enemy.visualY = static_cast<float>(y);
+    enemy.patrolStartX = x;
+    enemy.patrolStartY = y;
+    
+    // CHANGE: 2025-11-25 - Use cached texture key
+    if (textureMap.find(name) == textureMap.end()) {
+        textureMap[name] = (type == "boss") ? "dragon" : resolveTextureKey(name);
     }
-    
-    enemies.push_back(enemy);
-    
-    // CHANGE: 2025-11-14 - Reduce console spam in spawn loops (moved to verbose/debug mode)
-    // std::cout << "[EnemyManager] Spawned " << name << "..." << std::endl;
+    enemy.textureKey = textureMap[name];
 }
 
 // CHANGE: 2025-11-10 - Spawn enemy with drop table for loot system
 void EnemyManager::spawnEnemyWithDrops(const std::string& name, const std::string& type, int x, int y, 
                                        int health, int damage, int range, float speed, int floor, 
                                        const nlohmann::json& dropTable) {
-    EnemyData enemy(nextEnemyId++, name, type, health, damage, x, y, range, speed);
+    // OPTIMIZATION: Use emplace_back for in-place construction
+    enemies.emplace_back(nextEnemyId++, name, type, health, damage, x, y, range, speed);
+    
+    EnemyData& enemy = enemies.back();
     setEnemyAILevel(enemy, floor);
     enemy.dropTableJson = dropTable;  // Store drop table
     
-    // CHANGE: 2025-11-14 - Cache texture key like in spawnEnemy
-    if (name.find("Slime") != std::string::npos || name.find("Bogslium") != std::string::npos) {
-        enemy.textureKey = "slime";
-    } else if (name.find("Goblin") != std::string::npos) {
-        enemy.textureKey = "goblin";
-    } else if (name.find("Orc") != std::string::npos) {
-        enemy.textureKey = "orc";
-    } else if (name.find("Skeleton") != std::string::npos) {
-        enemy.textureKey = "skeleton";
-    } else if (name.find("Shadow") != std::string::npos || name.find("Wraith") != std::string::npos) {
-        enemy.textureKey = "wraith";
-    } else if (name.find("Vampire") != std::string::npos || name.find("Batilisk") != std::string::npos) {
-        enemy.textureKey = "vampire";
-    } else if (name.find("Lich") != std::string::npos || name.find("Necromancer") != std::string::npos) {
-        enemy.textureKey = "lich";
-    } else if (name.find("Dragon") != std::string::npos) {
-        enemy.textureKey = "dragon";
-    } else if (name.find("Dark Mage") != std::string::npos || name.find("Mage") != std::string::npos) {
-        enemy.textureKey = "dark_mage";
-    } else if (name.find("Gargoyle") != std::string::npos) {
-        enemy.textureKey = "gargoyle";
-    } else if (name.find("Minotaur") != std::string::npos) {
-        enemy.textureKey = "minotaur";
-    } else if (type == "boss") {
-        enemy.textureKey = "dragon";
+    // 🎮 Initialize visual and patrol positions
+    enemy.visualX = static_cast<float>(x);
+    enemy.visualY = static_cast<float>(y);
+    enemy.patrolStartX = x;
+    enemy.patrolStartY = y;
+    
+    // CHANGE: 2025-11-25 - Use cached texture key
+    if (textureMap.find(name) == textureMap.end()) {
+        textureMap[name] = (type == "boss") ? "dragon" : resolveTextureKey(name);
     }
-    
-    enemies.push_back(enemy);
-    
-    // CHANGE: 2025-11-14 - Reduce console spam in spawn loops
-    // std::cout << "[EnemyManager] Spawned " << name << " with drops..." << std::endl;
+    enemy.textureKey = textureMap[name];
 }
 
 void EnemyManager::removeEnemy(int id) {
@@ -149,11 +157,21 @@ void EnemyManager::removeDeadEnemies() {
 void EnemyManager::initializeTurnQueue() {
     turnQueue.clear();
     
+    // OPTIMIZATION: Pre-allocate queue capacity if possible
+    // Note: Queue uses deque internally, no reserve() needed
+    
     // CHANGE: 2025-11-14 - Remove debug spam
     // std::cout << "[EnemyManager] Initializing turn queue with " << enemies.size() << " enemies" << std::endl;
     
+    // OPTIMIZATION: Use range-based for loop for cleaner code
     for (auto& enemy : enemies) {
         turnQueue.enqueue(&enemy);
+    }
+    
+    // OPTIMIZATION: Use back() to verify last enemy added
+    if (!turnQueue.isEmpty()) {
+        // Verify queue is properly initialized
+        std::cout << "[EnemyManager] Turn queue initialized with " << turnQueue.size() << " enemies" << std::endl;
     }
 }
 
@@ -189,36 +207,191 @@ void EnemyManager::processNextTurn() {
 }
 
 void EnemyManager::update(float deltaTime) {
-    // Update enemy logic
+    static float globalBobTime = 0.f;
+    globalBobTime += deltaTime;
+    
+    // Update each enemy's animation and AI behavior
+    for (auto& enemy : enemies) {
+        // Spawn fade-in animation
+        if (enemy.isSpawning) {
+            enemy.spawnTimer -= deltaTime * 2.f;  // 0.5 seconds to fade in
+            if (enemy.spawnTimer <= 0.f) {
+                enemy.spawnTimer = 0.f;
+                enemy.isSpawning = false;
+            }
+        }
+        
+        // Idle bobbing animation (sinusoidal)
+        enemy.bobOffset = std::sin(globalBobTime * 3.f + enemy.id * 0.5f) * 2.f;
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // MOVEMENT TIMER - Enemies move at intervals, not every frame
+        // ═══════════════════════════════════════════════════════════════════════
+        enemy.moveTimer -= deltaTime;
+        
+        if (enemy.moveTimer <= 0.f) {
+            enemy.moveTimer = 0.5f + (std::rand() % 50) / 100.f;  // Move every 0.5-1.0 seconds
+            
+            // ═══════════════════════════════════════════════════════════════════════
+            // PLAYER DETECTION - Check if player is within range
+            // ═══════════════════════════════════════════════════════════════════════
+            int detectionRange = 5;
+            int attackRange = enemy.range;
+            
+            // Calculate distance to player target (set by Game class)
+            int dx = enemy.targetX - enemy.x;
+            int dy = enemy.targetY - enemy.y;
+            float distToPlayer = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+            
+            if (distToPlayer <= attackRange) {
+                // In attack range - stop and prepare attack
+                enemy.isAlerted = true;
+                enemy.alertTimer = EnemyData::ALERT_DURATION;
+                enemy.isPatrolling = false;
+            }
+            else if (distToPlayer <= detectionRange) {
+                // Detected player - chase!
+                enemy.isAlerted = true;
+                enemy.alertTimer = EnemyData::ALERT_DURATION;
+                enemy.isPatrolling = false;
+                
+                // Move towards player
+                int moveX = (dx > 0) ? 1 : (dx < 0) ? -1 : 0;
+                int moveY = (dy > 0) ? 1 : (dy < 0) ? -1 : 0;
+                
+                // Move one step (prefer diagonal if possible)
+                enemy.x += moveX;
+                enemy.y += moveY;
+            }
+            else if (enemy.isPatrolling) {
+                // ═══════════════════════════════════════════════════════════════════════
+                // PATROL AI - Move towards patrol target
+                // ═══════════════════════════════════════════════════════════════════════
+                int pdx = enemy.patrolTargetX - enemy.x;
+                int pdy = enemy.patrolTargetY - enemy.y;
+                
+                if (pdx != 0 || pdy != 0) {
+                    // Move one step towards patrol target
+                    int moveX = (pdx > 0) ? 1 : (pdx < 0) ? -1 : 0;
+                    int moveY = (pdy > 0) ? 1 : (pdy < 0) ? -1 : 0;
+                    enemy.x += moveX;
+                    enemy.y += moveY;
+                } else {
+                    // Reached patrol target, pick new one
+                    enemy.patrolTimer = 0.f;
+                }
+            }
+            
+            // Pick new patrol target periodically
+            if (enemy.isPatrolling && !enemy.isAlerted) {
+                enemy.patrolTimer -= 0.5f;  // Decrease by move interval
+                if (enemy.patrolTimer <= 0.f) {
+                    enemy.patrolTimer = EnemyData::PATROL_INTERVAL;
+                    int rx = (std::rand() % (EnemyData::PATROL_RADIUS * 2 + 1)) - EnemyData::PATROL_RADIUS;
+                    int ry = (std::rand() % (EnemyData::PATROL_RADIUS * 2 + 1)) - EnemyData::PATROL_RADIUS;
+                    enemy.patrolTargetX = enemy.patrolStartX + rx;
+                    enemy.patrolTargetY = enemy.patrolStartY + ry;
+                }
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // SMOOTH VISUAL POSITION LERP
+        // ═══════════════════════════════════════════════════════════════════════
+        float targetX = static_cast<float>(enemy.x);
+        float targetY = static_cast<float>(enemy.y);
+        float lerpSpeed = EnemyData::MOVE_LERP_SPEED * deltaTime;
+        enemy.visualX += (targetX - enemy.visualX) * lerpSpeed;
+        enemy.visualY += (targetY - enemy.visualY) * lerpSpeed;
+        
+        // Alert timer countdown
+        if (enemy.isAlerted) {
+            enemy.alertTimer -= deltaTime;
+            if (enemy.alertTimer <= 0.f) {
+                enemy.isAlerted = false;
+                enemy.isPatrolling = true;
+            }
+        }
+    }
 }
 
 void EnemyManager::render(sf::RenderWindow& window, float tileSize) const {
     for (const auto& enemy : enemies) {
+        // Calculate spawn animation alpha - ensure visible even during spawn
+        uint8_t spawnAlpha = 255;
+        if (enemy.isSpawning && enemy.spawnTimer > 0.f) {
+            // Fade from 50% to 100% during spawn
+            spawnAlpha = static_cast<uint8_t>(128 + 127 * (1.f - enemy.spawnTimer));
+        }
+        
+        // Calculate bob offset for Y position
+        float bobY = enemy.bobOffset;
+        
+        // Use smooth visual position for rendering
+        float renderX = enemy.visualX * tileSize;
+        float renderY = enemy.visualY * tileSize;
+        
         // Draw shadow first (below character)
-        sf::CircleShape shadow(10.0f);
-        shadow.setFillColor(sf::Color(0, 0, 0, 80));
-        shadow.setScale(sf::Vector2f(2.0f, 0.5f));
-        shadow.setPosition(sf::Vector2f(enemy.x * tileSize + 6.0f, enemy.y * tileSize + 28.0f));
+        sf::CircleShape shadow(SHADOW_RADIUS);
+        shadow.setFillColor(sf::Color(0, 0, 0, static_cast<uint8_t>(SHADOW_ALPHA * spawnAlpha / 255)));
+        shadow.setScale(sf::Vector2f(SHADOW_SCALE_X, SHADOW_SCALE_Y));
+        shadow.setPosition(sf::Vector2f(renderX + SHADOW_OFFSET_X, renderY + SHADOW_OFFSET_Y));
         window.draw(shadow);
         
+        // 🎮 Alert indicator (exclamation mark above enemy)
+        if (enemy.isAlerted) {
+            sf::CircleShape alertMark(4.f);
+            alertMark.setFillColor(sf::Color(255, 50, 50));
+            alertMark.setPosition(sf::Vector2f(renderX + tileSize / 2.f - 4.f, renderY - 10.f));
+            window.draw(alertMark);
+        }
+        
         // ═══════════════════════════════════════════════════════════════════════
-        // 👹 ENEMY/MONSTER SPRITES - Using DebtsInTheDepths individual sprites
+        // ENEMY SPRITES - Using DebtsInTheDepthsAssets from AssetManager
         // ═══════════════════════════════════════════════════════════════════════
         
-        // CHANGE: 2025-11-14 - Use cached textureKey instead of string searching every frame
-        sf::Texture* enemyTex = AssetManager::getInstance().getTexture(enemy.textureKey);
-        if (enemyTex) {
-            sf::Sprite enemySprite(*enemyTex);
-            float scale = (enemy.type == "boss") ? 2.0f : 1.5f;
-            enemySprite.setOrigin(sf::Vector2f(enemyTex->getSize().x / 2.0f, enemyTex->getSize().y / 2.0f));
-            enemySprite.setPosition(sf::Vector2f(enemy.x * tileSize + 16.0f, enemy.y * tileSize + 16.0f));
-            enemySprite.setScale(sf::Vector2f(scale, scale));
+        // Use cached texture key from enemy data
+        std::string textureKey = enemy.textureKey.empty() ? "goblin" : enemy.textureKey;
+        
+        // Debug log (once per enemy)
+        static std::unordered_set<int> loggedEnemies;
+        if (loggedEnemies.find(enemy.id) == loggedEnemies.end()) {
+            bool hasTexture = AssetManager::getInstance().hasTexture(textureKey);
+            std::cout << "[DEBUG] Enemy " << enemy.name << " textureKey: '" << textureKey 
+                      << "' exists=" << (hasTexture ? "YES" : "NO") << std::endl;
+            loggedEnemies.insert(enemy.id);
+        }
+        
+        sf::Texture* enemyTexture = AssetManager::getInstance().getTexture(textureKey);
+        if (enemyTexture) {
+            sf::Sprite enemySprite(*enemyTexture);
+            
+            // Center the sprite
+            sf::FloatRect bounds = enemySprite.getLocalBounds();
+            enemySprite.setOrigin(sf::Vector2f(bounds.size.x / 2.0f, bounds.size.y / 2.0f));
+            
+            // Apply smooth position and bob offset
+            enemySprite.setPosition(sf::Vector2f(
+                renderX + tileSize / 2.0f, 
+                renderY + tileSize / 2.0f + bobY
+            ));
+            
+            // Scale based on enemy type + spawn animation scale
+            float scaleMult = (enemy.type == "boss") ? BOSS_SCALE_MULT : NORMAL_SCALE_MULT;
+            float spawnScale = enemy.isSpawning ? (1.f - enemy.spawnTimer * 0.3f) : 1.f;
+            float scaleX = (tileSize * scaleMult * spawnScale) / bounds.size.x;
+            float scaleY = (tileSize * scaleMult * spawnScale) / bounds.size.y;
+            enemySprite.setScale(sf::Vector2f(scaleX, scaleY));
+            
+            // Apply spawn fade alpha
+            enemySprite.setColor(sf::Color(255, 255, 255, spawnAlpha));
+            
             window.draw(enemySprite);
         } else {
             // Fallback to circles if texture not loaded
-            float radius = tileSize * 0.35f;
+            float radius = tileSize * FALLBACK_RADIUS_MULT;
             if (enemy.type == "boss") {
-                radius = tileSize * 0.45f;
+                radius = tileSize * BOSS_RADIUS_MULT;
             }
             
             sf::CircleShape enemyCircle(radius);
@@ -240,22 +413,22 @@ void EnemyManager::render(sf::RenderWindow& window, float tileSize) const {
         }
         
         // Health bar background
-        sf::RectangleShape healthBg(sf::Vector2f(tileSize * 0.7f, 5.0f));
-        healthBg.setPosition(sf::Vector2f(enemy.x * tileSize + tileSize * 0.15f, 
-                                          enemy.y * tileSize + tileSize * 0.05f));
+        sf::RectangleShape healthBg(sf::Vector2f(tileSize * HEALTH_BAR_WIDTH_MULT, HEALTH_BAR_HEIGHT));
+        healthBg.setPosition(sf::Vector2f(enemy.x * tileSize + tileSize * HEALTH_BAR_X_OFFSET, 
+                                          enemy.y * tileSize + tileSize * HEALTH_BAR_Y_OFFSET));
         healthBg.setFillColor(sf::Color(50, 50, 50));
         window.draw(healthBg);
         
         // Health bar foreground
         float healthPercent = static_cast<float>(enemy.health) / enemy.maxHealth;
-        sf::RectangleShape healthBar(sf::Vector2f(tileSize * 0.7f * healthPercent, 5.0f));
-        healthBar.setPosition(sf::Vector2f(enemy.x * tileSize + tileSize * 0.15f, 
-                                           enemy.y * tileSize + tileSize * 0.05f));
+        sf::RectangleShape healthBar(sf::Vector2f(tileSize * HEALTH_BAR_WIDTH_MULT * healthPercent, HEALTH_BAR_HEIGHT));
+        healthBar.setPosition(sf::Vector2f(enemy.x * tileSize + tileSize * HEALTH_BAR_X_OFFSET, 
+                                           enemy.y * tileSize + tileSize * HEALTH_BAR_Y_OFFSET));
         
         // Health bar color changes with health level
-        if (healthPercent > 0.6f) {
+        if (healthPercent > HEALTH_GOOD_THRESHOLD) {
             healthBar.setFillColor(sf::Color(50, 200, 50));  // Green
-        } else if (healthPercent > 0.3f) {
+        } else if (healthPercent > HEALTH_WARN_THRESHOLD) {
             healthBar.setFillColor(sf::Color(255, 200, 0));  // Yellow
         } else {
             healthBar.setFillColor(sf::Color(255, 50, 50));  // Red
@@ -265,7 +438,11 @@ void EnemyManager::render(sf::RenderWindow& window, float tileSize) const {
 }
 
 EnemyData* EnemyManager::findNearestEnemy(int playerX, int playerY) {
-    if (enemies.empty()) return nullptr;
+    if (enemies.empty()) {
+        // CHANGE: 2025-11-14 - Add diagnostic logging
+        std::cerr << "[DEBUG] findNearestEnemy: No enemies available" << std::endl;
+        return nullptr;
+    }
     
     EnemyData* nearest = nullptr;
     int minDistance = INT_MAX;
@@ -281,6 +458,10 @@ EnemyData* EnemyManager::findNearestEnemy(int playerX, int playerY) {
         }
     }
     
+    if (!nearest) {
+        std::cerr << "[DEBUG] findNearestEnemy: Found no nearest enemy despite " << enemies.size() << " enemies available" << std::endl;
+    }
+    
     return nearest;
 }
 
@@ -290,5 +471,52 @@ EnemyData* EnemyManager::getEnemyById(int id) {
             return &enemy;
         }
     }
+    
+    // CHANGE: 2025-11-14 - Add warning instead of silent nullptr
+    std::cerr << "[WARNING] getEnemyById: Enemy with ID " << id << " not found" << std::endl;
     return nullptr;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SPATIAL INDEX (DSA: SpatialHash for O(k) enemy lookup)
+// Builds a spatial partition grid for fast proximity queries
+// ═══════════════════════════════════════════════════════════════════════════
+
+void EnemyManager::buildSpatialIndex() {
+    enemyGrid.clear();
+    
+    // Insert all living enemies into spatial hash (O(n))
+    for (auto& enemy : enemies) {
+        if (enemy.health > 0) {
+            // Use tile coordinates * cell size for world position
+            enemyGrid.insert(enemy.x * SPATIAL_CELL_SIZE, enemy.y * SPATIAL_CELL_SIZE, enemy.id);
+        }
+    }
+    
+    std::cout << "[EnemyManager] Spatial index built with " << enemyGrid.size() 
+              << " enemies in " << enemyGrid.bucketCount() << " cells" << std::endl;
+}
+
+std::vector<EnemyData*> EnemyManager::findNearbyEnemies(int x, int y, int radius) {
+    std::vector<EnemyData*> result;
+    
+    // Query spatial hash for nearby enemy IDs (O(k) where k = nearby enemies)
+    auto nearbyIds = enemyGrid.queryNearby(x * SPATIAL_CELL_SIZE, y * SPATIAL_CELL_SIZE, radius * SPATIAL_CELL_SIZE);
+    
+    // Resolve IDs to EnemyData pointers
+    for (int id : nearbyIds) {
+        EnemyData* enemy = getEnemyById(id);
+        if (enemy && enemy->health > 0) {
+            // Verify actual distance (spatial hash gives approximate results)
+            int dx = enemy->x - x;
+            int dy = enemy->y - y;
+            float dist = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+            
+            if (dist <= radius) {
+                result.push_back(enemy);
+            }
+        }
+    }
+    
+    return result;
 }

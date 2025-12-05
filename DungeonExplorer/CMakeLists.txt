@@ -37,6 +37,11 @@ set(SOURCES
     src/DataStructures/Tree.cpp
     src/DataStructures/Graph.cpp
     src/DataStructures/HashTable.cpp
+    src/TilesetReader.cpp
+    src/TileManager.cpp
+    src/InventoryRenderer.cpp
+    src/UIVisualEffects.cpp
+    src/SoundManager.cpp
 )
 
 # Create executable

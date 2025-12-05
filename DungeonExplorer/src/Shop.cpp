@@ -18,28 +18,28 @@ void Shop::initialize() {
     ItemManager& itemMgr = ItemManager::getInstance();
     
     if (itemMgr.hasItem("potion")) {
-        addItem(itemMgr.getItemById("potion"), 75);
+        addItem(itemMgr.getItemById("potion"), PRICE_POTION);
     }
     if (itemMgr.hasItem("elixir")) {
-        addItem(itemMgr.getItemById("elixir"), 200);
+        addItem(itemMgr.getItemById("elixir"), PRICE_ELIXIR);
     }
     if (itemMgr.hasItem("potion_mega")) {
-        addItem(itemMgr.getItemById("potion_mega"), 150);
+        addItem(itemMgr.getItemById("potion_mega"), PRICE_MEGA_POTION);
     }
     if (itemMgr.hasItem("sword_iron")) {
-        addItem(itemMgr.getItemById("sword_iron"), 100);
+        addItem(itemMgr.getItemById("sword_iron"), PRICE_SWORD_IRON);
     }
     if (itemMgr.hasItem("shield_wood")) {
-        addItem(itemMgr.getItemById("shield_wood"), 50);
+        addItem(itemMgr.getItemById("shield_wood"), PRICE_SHIELD_WOOD);
     }
     if (itemMgr.hasItem("bomb")) {
-        addItem(itemMgr.getItemById("bomb"), 120);
+        addItem(itemMgr.getItemById("bomb"), PRICE_BOMB);
     }
     if (itemMgr.hasItem("smoke_bomb")) {
-        addItem(itemMgr.getItemById("smoke_bomb"), 60);
+        addItem(itemMgr.getItemById("smoke_bomb"), PRICE_SMOKE_BOMB);
     }
     if (itemMgr.hasItem("map_fragment")) {
-        addItem(itemMgr.getItemById("map_fragment"), 40);
+        addItem(itemMgr.getItemById("map_fragment"), PRICE_MAP_FRAGMENT);
     }
     
     std::cout << "[Shop] Initialized with " << shopInventory.size() << " items" << std::endl;
@@ -77,7 +77,7 @@ bool Shop::purchaseItem(int index, Player* player) {
     
     if (player->spendGold(shopItem.price)) {
         // Add item to player inventory (new system)
-        player->addItemNew(shopItem.item);
+        player->addItem(shopItem.item);
         
         std::cout << "[Shop] Purchased " << shopItem.item.name << " for " << shopItem.price << " gold" << std::endl;
         return true;
@@ -120,39 +120,36 @@ void Shop::render(sf::RenderWindow& window) {
     
     // Dark overlay
     sf::RectangleShape overlay(sf::Vector2f(window.getSize().x, window.getSize().y));
-    overlay.setFillColor(sf::Color(0, 0, 0, 180));
+    overlay.setFillColor(sf::Color(0, 0, 0, OVERLAY_ALPHA));
     window.draw(overlay);
     
     // Shop panel
-    float panelWidth = 500.f;
-    float panelHeight = 450.f;
-    float panelX = (window.getSize().x - panelWidth) / 2.f;
-    float panelY = (window.getSize().y - panelHeight) / 2.f;
+    float panelX = (window.getSize().x - PANEL_WIDTH) / 2.f;
+    float panelY = (window.getSize().y - PANEL_HEIGHT) / 2.f;
     
-    sf::RectangleShape panel(sf::Vector2f(panelWidth, panelHeight));
+    sf::RectangleShape panel(sf::Vector2f(PANEL_WIDTH, PANEL_HEIGHT));
     panel.setPosition(sf::Vector2f(panelX, panelY));
-    panel.setFillColor(sf::Color(40, 30, 20, 250));
-    panel.setOutlineColor(sf::Color(200, 150, 100));
-    panel.setOutlineThickness(3.f);
+    panel.setFillColor(sf::Color(PANEL_BG_R, PANEL_BG_G, PANEL_BG_B, PANEL_BG_A));
+    panel.setOutlineColor(sf::Color(BORDER_R, BORDER_G, BORDER_B));
+    panel.setOutlineThickness(PANEL_OUTLINE);
     window.draw(panel);
     
     // Title
-    sf::Text title(font, "SHOP", 28);
-    title.setPosition(sf::Vector2f(panelX + 20.f, panelY + 15.f));
-    title.setFillColor(sf::Color(255, 215, 0));
+    sf::Text title(font, "SHOP", TITLE_FONT_SIZE);
+    title.setPosition(sf::Vector2f(panelX + PADDING, panelY + TITLE_Y));
+    title.setFillColor(sf::Color(GOLD_R, GOLD_G, GOLD_B));
     title.setOutlineThickness(2.f);
     title.setOutlineColor(sf::Color::Black);
     window.draw(title);
     
     // Instructions
-    sf::Text instructions(font, "Arrow Keys: Select | Enter: Buy | P/Esc: Close", 12);
-    instructions.setPosition(sf::Vector2f(panelX + 20.f, panelY + 50.f));
+    sf::Text instructions(font, "Arrow Keys: Select | Enter: Buy | P/Esc: Close", INSTR_FONT_SIZE);
+    instructions.setPosition(sf::Vector2f(panelX + PADDING, panelY + INSTR_Y));
     instructions.setFillColor(sf::Color(180, 180, 180));
     window.draw(instructions);
     
     // Item list
-    float itemY = panelY + 90.f;
-    float itemHeight = 35.f;
+    float itemY = panelY + LIST_START_Y;
     
     for (size_t i = 0; i < shopInventory.size(); ++i) {
         const ShopItem& shopItem = shopInventory[i];
@@ -160,17 +157,17 @@ void Shop::render(sf::RenderWindow& window) {
         
         // Selection highlight
         if (isSelected) {
-            sf::RectangleShape highlight(sf::Vector2f(panelWidth - 40.f, itemHeight - 5.f));
-            highlight.setPosition(sf::Vector2f(panelX + 20.f, itemY));
-            highlight.setFillColor(sf::Color(80, 60, 40, 200));
-            highlight.setOutlineColor(sf::Color(255, 215, 0));
+            sf::RectangleShape highlight(sf::Vector2f(PANEL_WIDTH - 2*PADDING, ITEM_HEIGHT - 5.f));
+            highlight.setPosition(sf::Vector2f(panelX + PADDING, itemY));
+            highlight.setFillColor(sf::Color(HIGHLIGHT_R, HIGHLIGHT_G, HIGHLIGHT_B, HIGHLIGHT_A));
+            highlight.setOutlineColor(sf::Color(GOLD_R, GOLD_G, GOLD_B));
             highlight.setOutlineThickness(2.f);
             window.draw(highlight);
         }
         
         // Item name
-        sf::Text itemName(font, shopItem.item.name, 16);
-        itemName.setPosition(sf::Vector2f(panelX + 30.f, itemY + 5.f));
+        sf::Text itemName(font, shopItem.item.name, ITEM_FONT_SIZE);
+        itemName.setPosition(sf::Vector2f(panelX + PADDING + 10.f, itemY + 5.f));
         itemName.setFillColor(shopItem.item.getRarityColor());
         itemName.setOutlineThickness(1.f);
         itemName.setOutlineColor(sf::Color::Black);
@@ -178,20 +175,20 @@ void Shop::render(sf::RenderWindow& window) {
         
         // Item type and rarity
         std::string typeText = shopItem.item.type + " (" + shopItem.item.getRarityName() + ")";
-        sf::Text itemDesc(font, typeText, 11);
-        itemDesc.setPosition(sf::Vector2f(panelX + 30.f, itemY + 22.f));
+        sf::Text itemDesc(font, typeText, TYPE_FONT_SIZE);
+        itemDesc.setPosition(sf::Vector2f(panelX + PADDING + 10.f, itemY + 22.f));
         itemDesc.setFillColor(sf::Color(150, 150, 150));
         window.draw(itemDesc);
         
         // Price
-        sf::Text priceText(font, std::to_string(shopItem.price) + " G", 16);
-        priceText.setPosition(sf::Vector2f(panelX + panelWidth - 100.f, itemY + 8.f));
-        priceText.setFillColor(sf::Color(255, 215, 0));
+        sf::Text priceText(font, std::to_string(shopItem.price) + " G", ITEM_FONT_SIZE);
+        priceText.setPosition(sf::Vector2f(panelX + PANEL_WIDTH - 100.f, itemY + 8.f));
+        priceText.setFillColor(sf::Color(GOLD_R, GOLD_G, GOLD_B));
         priceText.setOutlineThickness(1.f);
         priceText.setOutlineColor(sf::Color::Black);
         window.draw(priceText);
         
-        itemY += itemHeight;
+        itemY += ITEM_HEIGHT;
     }
 }
 
