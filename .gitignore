@@ -1,0 +1,12 @@
+# Agent workflows
+.agent/
+
+# Python virtual environment
+.venv/
+
+# VS Code settings
+.vscode/
+DungeonExplorer/.vscode/
+
+# Node modules
+node_modules/
