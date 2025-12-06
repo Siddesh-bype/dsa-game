@@ -1,20 +1,18 @@
 #include "Shop.h"
 #include "ItemManager.h"
-#include <iostream>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTRUCTOR & INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
 
 Shop::Shop() : isOpen(false), selectedIndex(0), fontLoaded(false) {
 }
 
 void Shop::initialize() {
     // Load font
-    if (font.openFromFile("C:\\Windows\\Fonts\\arial.ttf")) {
-        fontLoaded = true;
-        std::cout << "[Shop] Font loaded successfully" << std::endl;
-    } else {
-        std::cerr << "[Shop] Failed to load font!" << std::endl;
-    }
+    fontLoaded = font.openFromFile("C:\\Windows\\Fonts\\arial.ttf");
     
-    // Add items to shop with prices (higher than item value)
+    // Add items to shop with prices
     ItemManager& itemMgr = ItemManager::getInstance();
     
     if (itemMgr.hasItem("potion")) {
@@ -41,23 +39,23 @@ void Shop::initialize() {
     if (itemMgr.hasItem("map_fragment")) {
         addItem(itemMgr.getItemById("map_fragment"), PRICE_MAP_FRAGMENT);
     }
-    
-    std::cout << "[Shop] Initialized with " << shopInventory.size() << " items" << std::endl;
 }
 
 void Shop::addItem(const ItemNew& item, int price) {
     shopInventory.emplace_back(item, price);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SHOP STATE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
 void Shop::open() {
     isOpen = true;
     selectedIndex = 0;
-    std::cout << "[Shop] Opened" << std::endl;
 }
 
 void Shop::close() {
     isOpen = false;
-    std::cout << "[Shop] Closed" << std::endl;
 }
 
 void Shop::toggle() {
@@ -68,6 +66,10 @@ void Shop::toggle() {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PURCHASING
+// ═══════════════════════════════════════════════════════════════════════════
+
 bool Shop::purchaseItem(int index, Player* player) {
     if (index < 0 || index >= static_cast<int>(shopInventory.size())) {
         return false;
@@ -76,15 +78,16 @@ bool Shop::purchaseItem(int index, Player* player) {
     const ShopItem& shopItem = shopInventory[index];
     
     if (player->spendGold(shopItem.price)) {
-        // Add item to player inventory (new system)
         player->addItem(shopItem.item);
-        
-        std::cout << "[Shop] Purchased " << shopItem.item.name << " for " << shopItem.price << " gold" << std::endl;
         return true;
     }
     
     return false;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUT HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
 
 void Shop::handleInput(sf::Keyboard::Key key, Player* player) {
     if (!isOpen) return;
@@ -115,17 +118,37 @@ void Shop::handleInput(sf::Keyboard::Key key, Player* player) {
     }
 }
 
+void Shop::moveSelectionUp() {
+    selectedIndex--;
+    if (selectedIndex < 0) {
+        selectedIndex = static_cast<int>(shopInventory.size()) - 1;
+    }
+}
+
+void Shop::moveSelectionDown() {
+    selectedIndex++;
+    if (selectedIndex >= static_cast<int>(shopInventory.size())) {
+        selectedIndex = 0;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+
 void Shop::render(sf::RenderWindow& window) {
     if (!isOpen || !fontLoaded) return;
     
+    const auto winSize = window.getSize();
+    
     // Dark overlay
-    sf::RectangleShape overlay(sf::Vector2f(window.getSize().x, window.getSize().y));
+    sf::RectangleShape overlay(sf::Vector2f(static_cast<float>(winSize.x), static_cast<float>(winSize.y)));
     overlay.setFillColor(sf::Color(0, 0, 0, OVERLAY_ALPHA));
     window.draw(overlay);
     
     // Shop panel
-    float panelX = (window.getSize().x - PANEL_WIDTH) / 2.f;
-    float panelY = (window.getSize().y - PANEL_HEIGHT) / 2.f;
+    const float panelX = (winSize.x - PANEL_WIDTH) / 2.f;
+    const float panelY = (winSize.y - PANEL_HEIGHT) / 2.f;
     
     sf::RectangleShape panel(sf::Vector2f(PANEL_WIDTH, PANEL_HEIGHT));
     panel.setPosition(sf::Vector2f(panelX, panelY));
@@ -153,11 +176,11 @@ void Shop::render(sf::RenderWindow& window) {
     
     for (size_t i = 0; i < shopInventory.size(); ++i) {
         const ShopItem& shopItem = shopInventory[i];
-        bool isSelected = (static_cast<int>(i) == selectedIndex);
+        const bool isSelected = (static_cast<int>(i) == selectedIndex);
         
         // Selection highlight
         if (isSelected) {
-            sf::RectangleShape highlight(sf::Vector2f(PANEL_WIDTH - 2*PADDING, ITEM_HEIGHT - 5.f));
+            sf::RectangleShape highlight(sf::Vector2f(PANEL_WIDTH - 2 * PADDING, ITEM_HEIGHT - 5.f));
             highlight.setPosition(sf::Vector2f(panelX + PADDING, itemY));
             highlight.setFillColor(sf::Color(HIGHLIGHT_R, HIGHLIGHT_G, HIGHLIGHT_B, HIGHLIGHT_A));
             highlight.setOutlineColor(sf::Color(GOLD_R, GOLD_G, GOLD_B));
@@ -174,7 +197,7 @@ void Shop::render(sf::RenderWindow& window) {
         window.draw(itemName);
         
         // Item type and rarity
-        std::string typeText = shopItem.item.type + " (" + shopItem.item.getRarityName() + ")";
+        const std::string typeText = shopItem.item.type + " (" + shopItem.item.getRarityName() + ")";
         sf::Text itemDesc(font, typeText, TYPE_FONT_SIZE);
         itemDesc.setPosition(sf::Vector2f(panelX + PADDING + 10.f, itemY + 22.f));
         itemDesc.setFillColor(sf::Color(150, 150, 150));
@@ -192,16 +215,3 @@ void Shop::render(sf::RenderWindow& window) {
     }
 }
 
-void Shop::moveSelectionUp() {
-    selectedIndex--;
-    if (selectedIndex < 0) {
-        selectedIndex = static_cast<int>(shopInventory.size()) - 1;
-    }
-}
-
-void Shop::moveSelectionDown() {
-    selectedIndex++;
-    if (selectedIndex >= static_cast<int>(shopInventory.size())) {
-        selectedIndex = 0;
-    }
-}

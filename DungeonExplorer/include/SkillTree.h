@@ -108,6 +108,16 @@ private:
         float dy = y2 - y1;
         return std::sqrt(dx * dx + dy * dy);
     }
+    
+    // Private helper methods for initialization
+    void initializeWarriorBranch();
+    void initializeMageBranch();
+    
+    // Private helper for tooltip rendering
+    void renderTooltip(sf::RenderWindow& window, sf::Font& font, 
+                       sf::Vector2f mousePos, 
+                       std::shared_ptr<BinaryTree<Skill>::Node> node) const;
+
 
 public:
     SkillTree();

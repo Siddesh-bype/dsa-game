@@ -150,6 +150,9 @@ private:
     static constexpr float FALLBACK_RADIUS_MULT = 0.35f;
     static constexpr float FALLBACK_OFFSET_MULT = 0.15f;
     static constexpr float FALLBACK_OUTLINE = 2.5f;
+    
+    // Private helper methods
+    bool handleEquipAction(ItemNew* item, const nlohmann::json& params, const std::string& itemId);
 
 public:
     Player();

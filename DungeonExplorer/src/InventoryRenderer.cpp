@@ -30,6 +30,8 @@ void InventoryRenderer::renderItemSlot(sf::RenderWindow& window, const ItemNew& 
     // Render item icon - use item.id as key (ItemManager registers textures by ID)
     sf::Vector2f iconPos = position + sf::Vector2f(SLOT_PADDING, SLOT_PADDING);
     renderItemIcon(window, item.id, iconPos, {ICON_SIZE, ICON_SIZE});
+    
+    // NOTE: Stack count display is handled by UIManager which has access to font
 }
 
 void InventoryRenderer::renderItemIcon(sf::RenderWindow& window, const std::string& itemId,
@@ -77,6 +79,11 @@ void InventoryRenderer::renderTooltip(sf::RenderWindow& window, const ItemNew& i
     }
     
     ss << "Value: " << item.value << " gold\n";
+    
+    // CHANGE: 2025-12-06 - Show stack count in tooltip
+    if (item.stackCount > 1) {
+        ss << "Stack: " << item.stackCount << "/" << MAX_STACK_SIZE << "\n";
+    }
     
     if (item.cooldown > 0) {
         ss << "Cooldown: " << item.cooldown << "s\n";

@@ -1,22 +1,5 @@
-// CHANGE: 2025-11-10 — TASK D: Floor transition with stairs
-// - Added "E" key to descend stairs when adjacent
-// - Added contextual prompt showing "Press E to descend"
-// - Added debug logging for floor transitions
-// - Stairs automatically placed in furthest room from entrance
-
-// CHANGE: 2025-11-XX — 10-Floor Progressive Dungeon System
-// - Integrated DungeonLevelManager for floor progression
-// - Added adaptive enemy AI scaling (5 intelligence levels)
-// - Implemented floor-specific themes and difficulty multipliers
-// - Added boss encounters on floors 5 and 10
-// - Victory condition when completing floor 10
-
-// CHANGE: 2025-11-10 - Item-drop system with loot tables and interactive doors
-// - Added ItemManager for item database (hash table)
-// - Added Loot entity system for items on ground
-// - Added DropTable for weighted random item drops
-// - Added Door system with open/close states
-// - E key now handles: pickup loot, open doors, descend stairs
+// Game.cpp - Core game loop and system initialization
+// DSA structures: Graph (rooms), Stack (backtrack), HashTable (items), Heap (loot), BinaryTree (skills)
 
 #include "Game.h"
 #include "Player.h"
@@ -32,6 +15,8 @@
 #include "Loot.h"
 #include "DropTable.h"
 #include "Shop.h"
+#include "SaveSystem.h"
+#include "SettingsManager.h"
 #include "DataStructures/Heap.h"
 #include "DataStructures/HashTable.h"
 #include "DataStructures/AStar.h"
@@ -42,1168 +27,820 @@
 
 Game::Game() 
     : window(sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}), "Dungeon Explorer - DSA Game"),
-      // gui(window),  // Disabled - TGUI not compatible
       isRunning(true),
       isPaused(false),
-      currentState(GameState::Playing),  // Changed from MainMenu to Playing
+      currentState(GameState::Playing),
       currentFloor(STARTING_FLOOR),
       exitStairsPosition({0, 0}),
-      levelManager(std::make_unique<DungeonLevelManager>()) {  // NEW: Initialize level manager
-    
+      levelManager(std::make_unique<DungeonLevelManager>()) {
     window.setFramerateLimit(static_cast<unsigned int>(targetFPS));
 }
 
-Game::~Game() {
-}
+Game::~Game() = default;
 
 void Game::initialize() {
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "   DUNGEON EXPLORER - DSA Game" << std::endl;
-    std::cout << "========================================\n" << std::endl;
+    std::cout << "\n╔════════════════════════════════════════╗\n"
+              <<   "║    DUNGEON EXPLORER - DSA Edition      ║\n"
+              <<   "╚════════════════════════════════════════╝\n" << std::endl;
     
-    // Load Kenney assets first
-    std::cout << "[Game] Loading Kenney asset pack..." << std::endl;
+    // Load core data files
     AssetManager::getInstance().loadFromManifest("assets/data/kenney_manifest.json");
-    std::cout << "[Game] Kenney assets loaded successfully!\n" << std::endl;
-    
-    // Load level configurations
-    std::cout << "[Game] Loading 10-floor dungeon system..." << std::endl;
     levelManager->loadLevels("assets/data/levels.json");
-    std::cout << "[Game] 10-floor system loaded!\n" << std::endl;
-    
-    // CHANGE: 2025-11-10 - Load item database
-    std::cout << "[Game] Loading item database (Hash Table)..." << std::endl;
     ItemManager::getInstance().loadItems("assets/data/items.json");
-    std::cout << "[Game] Item database loaded with " << ItemManager::getInstance().getItemCount() << " items!\n" << std::endl;
     
-    // Initialize all systems
+    // Initialize core systems
     player = std::make_unique<Player>();
     dungeon = std::make_unique<Dungeon>();
     renderer = std::make_unique<Renderer>(&window, TILE_SIZE);
-    uiManager = std::make_unique<UIManager>(this);  // Fixed - no longer needs gui pointer
-    
-    // Generate first floor using level manager
+    uiManager = std::make_unique<UIManager>(this);
     enemyManager = std::make_unique<EnemyManager>();
+    
+    // Generate first floor
     levelManager->generateLevel(currentFloor, *dungeon, *enemyManager, *player);
     
-    // Initialize player at start position
+    // Spawn player in first room
     if (!dungeon->getRooms().empty()) {
-        const auto& startRoom = dungeon->getRooms()[0];
-        player->initialize(startRoom.x + 1, startRoom.y + 1);
+        const auto& room = dungeon->getRooms()[0];
+        player->initialize(room.x + 1, room.y + 1);
     }
     
-    std::cout << "\n[Game] " << levelManager->getFloorDisplayText(currentFloor) << std::endl;
-    std::cout << "[Game] " << levelManager->getFloorDescription(currentFloor) << "\n" << std::endl;
-    
-    // ═══════════════════════════════════════════════════════════════════════
-    // CHANGE: 2025-11-14 - DSA Integration Report
-    // ═══════════════════════════════════════════════════════════════════════
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "   DSA STRUCTURES INTEGRATION REPORT" << std::endl;
-    std::cout << "========================================" << std::endl;
-    
-    // Graph: Room connectivity
-    std::cout << "\n✓ GRAPH (Room Connectivity):" << std::endl;
-    std::cout << "  - Rooms: " << dungeon->getRooms().size() << " connected as graph" << std::endl;
-    std::cout << "  - Uses: BFS, DFS, Dijkstra pathfinding for room traversal" << std::endl;
-    dungeon->visualizeDijkstra(0);
-    
-    // LinkedList: Player Inventory
-    std::cout << "\n✓ LINKED LIST (Player Inventory):" << std::endl;
-    std::cout << "  - Inventory: Player has " << player->getInventoryNew().size() << " items in LinkedList<ItemNew>" << std::endl;
-    std::cout << "  - Contains: Dagger, Gold Coin, Silver Ring (starting items)" << std::endl;
-    
-    // Stack: Backtracking (Movement History)
-    std::cout << "\n✓ STACK (Movement History/Backtracking):" << std::endl;
-    std::cout << "  - Movement Stack: Tracks player path for backtracking (Press B)" << std::endl;
-    std::cout << "  - Operations: push (move), pop (backtrack)" << std::endl;
-    
-    // Hash Table: Item Database
-    std::cout << "\n✓ HASH TABLE (Item Database):" << std::endl;
-    std::cout << "  - ItemManager: " << ItemManager::getInstance().getItemCount() << " items indexed by ID" << std::endl;
-    std::cout << "  - O(1) Lookup: Perfect for quick item retrieval by name/ID" << std::endl;
-    
-    // Heap: Loot Priority (Premium Items)
-    std::cout << "\n✓ HEAP (Loot Priority Tracking):" << std::endl;
-    std::cout << "  - Premium Loot: Rare items (rarity ≥ 3) get glow highlighting" << std::endl;
-    std::cout << "  - Priority: Higher rarity = brighter glow on ground" << std::endl;
-    
-    // Binary Tree: Skill Tree
-    std::cout << "\n✓ BINARY TREE (Skill Tree):" << std::endl;
-    std::cout << "  - Root Skill: Slash (starter ability)" << std::endl;
-    std::cout << "  - Tree Depth: Balanced binary tree with passive/active skills" << std::endl;
-    
-    std::cout << "\n========================================\n" << std::endl;
-    
-    // Demonstrate Item Database (Hash Table)
-    std::cout << "[Game] Creating Item Database (Hash Table)..." << std::endl;
-    HashTable<std::string, Item> itemDatabase;
-    itemDatabase.insert("sword", Item("sword_iron", "Iron Sword", "weapon", 15, 50, 0));
-    itemDatabase.insert("potion", Item("potion", "Health Potion", "consumable", 0, 25, 50));
-    itemDatabase.insert("shield", Item("shield_wood", "Wooden Shield", "armor", 0, 30, 0));
-    itemDatabase.insert("bow", Item("bow_hunting", "Hunting Bow", "weapon", 12, 45, 0));
-    
-    // Test hash table lookup
-    auto swordOpt = itemDatabase.get("sword");
-    if (swordOpt) {
-        std::cout << "[Game] Found item: " << swordOpt->name << " (DMG: " << swordOpt->damage << ")" << std::endl;
-    }
-    
-    // Demonstrate Loot System (Heap)
-    std::cout << "\n[Game] Creating Loot System (Max Heap)..." << std::endl;
-    // CHANGE: 2025-11-14 - Use ItemNew system instead of old Item
-    // Add some starting loot
+    // Starting items
     player->addItem(ItemNew("dagger_rusty", "Rusty Dagger", "weapon", 1, 10));
     player->addItem(ItemNew("coin_gold", "Gold Coin", "treasure", 1, 100));
     player->addItem(ItemNew("ring_silver", "Silver Ring", "treasure", 1, 75));
     
-    // Initialize UI
+    // UI setup
     uiManager->initialize();
-    
-    // Load font for UI rendering (try common Windows fonts)
     if (!uiManager->loadFont("C:\\Windows\\Fonts\\arial.ttf")) {
-        std::cout << "[Game] Warning: Could not load font, trying alternative..." << std::endl;
-        if (!uiManager->loadFont("C:\\Windows\\Fonts\\calibri.ttf")) {
-            std::cout << "[Game] Warning: No fonts loaded, text may not render" << std::endl;
-        }
+        uiManager->loadFont("C:\\Windows\\Fonts\\calibri.ttf");
     }
     
-    // Create skill tree
+    // Skill tree
     skillTree = std::make_unique<SkillTree>();
     skillTree->initialize();
-    skillTree->displayTree();
-    
-    // Grant starting skill points for testing/gameplay
     skillTree->addPoints(STARTING_SKILL_POINTS);
-    std::cout << "\n[SkillTree] Player starts with " << STARTING_SKILL_POINTS << " skill points." << std::endl;
-    std::cout << "[SkillTree] Press T to open skill tree and unlock skills!" << std::endl;
-    std::cout << "[SkillTree] Only 'Slash' (hotkey 1) is unlocked initially.\n" << std::endl;
     
-    // Initialize shop
+    // Shop
     shop = std::make_unique<Shop>();
     shop->initialize();
-    std::cout << "\n[Shop] Shop system initialized!" << std::endl;
     
-    // OLD: Enemies are now spawned by levelManager->generateLevel()
-    // Removed manual enemy spawning code
+    // Note: SaveSystem and SettingsManager are singletons - access via ::getInstance()
     
+    // Enemy turn queue
     enemyManager->initializeTurnQueue();
     
-    // Demonstrate pathfinding algorithms
-    if (dungeon->getRooms().size() > 1) {
-        dungeon->visualizeBFS(0);
-        dungeon->visualizeDFS(0);
-        dungeon->visualizeDijkstra(0);
-    }
+    // DSA summary
+    std::cout << "DSA Structures Active:\n"
+              << "  • Graph: " << dungeon->getRooms().size() << " rooms (BFS/DFS/Dijkstra)\n"
+              << "  • HashTable: " << ItemManager::getInstance().getItemCount() << " items\n"
+              << "  • LinkedList: Player inventory\n"
+              << "  • Stack: Movement backtracking [B]\n"
+              << "  • BinaryTree: Skill tree [K]\n"
+              << "  • Heap: Loot priority system\n" << std::endl;
     
-    std::cout << "\n[Game] Initialization complete!" << std::endl;
-    std::cout << "========================================\n" << std::endl;
+    std::cout << levelManager->getFloorDisplayText(currentFloor) << "\n"
+              << "Controls: WASD=Move, Space=Attack, E=Interact, I=Inventory\n" << std::endl;
 }
 
 void Game::run() {
     initialize();
     
     sf::Clock clock;
-    
     while (window.isOpen() && isRunning) {
-        float deltaTime = clock.restart().asSeconds();
-        
-        // Cap delta time to prevent huge jumps (e.g., when debugging or lag spikes)
-        // Max 0.1 seconds (10 FPS minimum) to prevent physics/animation issues
-        if (deltaTime > MAX_DELTA_TIME) {
-            deltaTime = MAX_DELTA_TIME;
-        }
+        float deltaTime = std::min(clock.restart().asSeconds(), MAX_DELTA_TIME);
         
         processEvents();
-        
-        if (!isPaused) {
-            update(deltaTime);
-        }
-        
+        if (!isPaused) update(deltaTime);
         render();
     }
 }
 
 void Game::processEvents() {
-    // SFML 3.x uses std::optional for event polling
-    while (const std::optional event = window.pollEvent()) {
-        // gui.handleEvent(event);  // Disabled - TGUI not compatible
-        
+    while (const auto event = window.pollEvent()) {
         if (event->is<sf::Event::Closed>()) {
             window.close();
             isRunning = false;
         }
-        
         if (event->is<sf::Event::KeyPressed>() && currentState == GameState::Playing) {
             handleInput(*event);
         }
+        
+        // Mouse movement for ItemWheel hover
+        if (const auto* mouseMoved = event->getIf<sf::Event::MouseMoved>()) {
+            if (uiManager && uiManager->isItemWheelOpen()) {
+                uiManager->getItemWheel().handleMouseMove(
+                    sf::Vector2f(static_cast<float>(mouseMoved->position.x), 
+                                 static_cast<float>(mouseMoved->position.y)));
+            }
+        }
+        
+        // Mouse click for ItemWheel item selection
+        if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>()) {
+            if (mousePressed->button == sf::Mouse::Button::Left) {
+                if (uiManager && uiManager->isItemWheelOpen() && player) {
+                    const int selectedIndex = uiManager->getItemWheel().handleClick();
+                    if (selectedIndex >= 0) {
+                        // Use selected item (1-indexed slot)
+                        if (player->useHotbarItem(selectedIndex + 1)) {
+                            const auto playerPos = player->getPosition();
+                            uiManager->addFloatingText(
+                                "Item Used!", 
+                                playerPos.x * TILE_SIZE, 
+                                playerPos.y * TILE_SIZE - 20, 
+                                sf::Color(100, 255, 100)
+                            );
+                        }
+                        uiManager->getItemWheel().close();
+                    }
+                }
+            }
+        }
     }
 }
+
 
 void Game::handleInput(const sf::Event& event) {
     if (!player || !dungeon) return;
     
-    // Check if shop is open - handle shop input first
+    // Shop intercepts all input when open
     if (shop && shop->isShopOpen()) {
-        if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
-            shop->handleInput(keyPressed->code, player.get());
+        if (const auto* key = event.getIf<sf::Event::KeyPressed>()) {
+            shop->handleInput(key->code, player.get());
         }
-        return;  // Don't process other input while shop is open
+        return;
     }
     
-    // SFML 3.x event handling
-    if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
-        Position currentPos = player->getPosition();
-        Position newPos = currentPos;
+    const auto* key = event.getIf<sf::Event::KeyPressed>();
+    if (!key) return;
+    
+    const Position currentPos = player->getPosition();
+    const float px = currentPos.x * TILE_SIZE;
+    const float py = currentPos.y * TILE_SIZE;
+    
+    // Helper for floating text at player position
+    auto showText = [&](const std::string& msg, sf::Color color, float yOffset = -10.f) {
+        if (uiManager) uiManager->addFloatingText(msg, px, py + yOffset, color);
+    };
+    
+    Position newPos = currentPos;
+    
+    switch (key->code) {
+        // Movement
+        case sf::Keyboard::Key::W: case sf::Keyboard::Key::Up:    newPos.y--; break;
+        case sf::Keyboard::Key::S: case sf::Keyboard::Key::Down:  newPos.y++; break;
+        case sf::Keyboard::Key::A: case sf::Keyboard::Key::Left:  newPos.x--; break;
+        case sf::Keyboard::Key::D: case sf::Keyboard::Key::Right: newPos.x++; break;
         
-        switch (keyPressed->code) {
-            case sf::Keyboard::Key::W:
-            case sf::Keyboard::Key::Up:
-                newPos.y--;
-                break;
-            case sf::Keyboard::Key::S:
-            case sf::Keyboard::Key::Down:
-                newPos.y++;
-                break;
-            case sf::Keyboard::Key::A:
-            case sf::Keyboard::Key::Left:
-                newPos.x--;
-                break;
-            case sf::Keyboard::Key::D:
-            case sf::Keyboard::Key::Right:
-                newPos.x++;
-                break;
-            case sf::Keyboard::Key::B:
-                // Backtrack using Stack
-                player->backtrack();
-                return;
-            case sf::Keyboard::Key::I:
-                // Toggle inventory
-                uiManager->toggleInventory();
-                return;
-            case sf::Keyboard::Key::K:
-                // Toggle skill tree
-                uiManager->toggleSkillTree();
-                return;
-            case sf::Keyboard::Key::O:
-                // Quick unlock next skill (O for unl-O-ck) when points available
-                if (skillTree && skillTree->getAvailablePoints() > 0) {
-                    // Try to unlock next available skill in tree order with proper hotkeys
-                    auto tryUnlock = [&](std::shared_ptr<BinaryTree<Skill>::Node> node, int hotkey) -> bool {
-                        if (!node) return false;
-                        if (!node->data.unlocked && skillTree->canUnlock(node)) {
-                            // Assign hotkey if it's an active skill and doesn't have one
-                            if (node->data.type == "active" && node->data.hotkey == 0) {
-                                node->data.hotkey = hotkey;
-                                std::cout << "[SkillTree] Assigned hotkey " << hotkey << " to " << node->data.name << std::endl;
-                            }
-                            skillTree->unlockSkill(node);
-                            Position playerPos = player->getPosition();
-                            std::string hotkeyInfo = (node->data.type == "active" && node->data.hotkey > 0) 
-                                ? " [Press " + std::to_string(node->data.hotkey) + "]" : "";
-                            uiManager->addFloatingText("Unlocked: " + node->data.name + hotkeyInfo, 
-                                playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(100, 255, 100));
-                            return true;
-                        }
-                        return false;
-                    };
-                    
-                    // Try to unlock skills in order: Power Strike (2), Whirlwind (3), Flame Wave (4), Shadow Step (5)
-                    auto root = skillTree->getRoot();
-                    // CHANGE: 2025-11-14 - Add bounds checking to prevent crashes on malformed trees
-                    if (root && root->left && tryUnlock(root->left, 2)) {
-                        std::cout << "[SkillTree] Power Strike unlocked! Press O again for more skills!" << std::endl;
-                    } 
-                    // Try to unlock whirlwind (depth 2)
-                    else if (root && root->left && root->left->left && tryUnlock(root->left->left, 3)) {
-                        std::cout << "[SkillTree] Whirlwind unlocked! Press O again for more skills!" << std::endl;
-                    }
-                    // Try to unlock flame wave (depth 3) - with bounds check
-                    else if (root && root->left && root->left->left && 
-                             root->left->left->left && tryUnlock(root->left->left->left, 4)) {
-                        std::cout << "[SkillTree] Flame Wave unlocked! Press O again for more skills!" << std::endl;
-                    }
-                    // Try right branch - shadow step (depth 2) - with bounds check
-                    else if (root && root->right && root->right->right && tryUnlock(root->right->right, 5)) {
-                        std::cout << "[SkillTree] Shadow Step unlocked! Press O again for more skills!" << std::endl;
-                    }
-                    // Try other right branch skills (depth 1)
-                    else if (root && root->right && tryUnlock(root->right, 0)) {  // Passive skills
-                        std::cout << "[SkillTree] Mana Surge unlocked (passive)! Press O again!" << std::endl;
-                    }
-                    else {
-                        Position playerPos = player->getPosition();
-                        uiManager->addFloatingText("No skills available to unlock!", 
-                            playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(255, 100, 100));
-                    }
-                } else if (skillTree) {
-                    Position playerPos = player->getPosition();
-                    uiManager->addFloatingText("No skill points available!", 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(255, 200, 100));
-                }
-                return;
-            case sf::Keyboard::Key::P:
-                // Toggle shop
-                if (shop) {
-                    shop->toggle();
-                }
-                return;
-            case sf::Keyboard::Key::U:
-                // Use first item in inventory (U for Use)
-                if (player && player->getInventoryNew().size() > 0) {
-                    // Get first item
-                    bool foundItem = false;
-                    std::string firstItemId;
-                    player->getInventoryNew().traverse([&](const ItemNew& item) {
-                        if (!foundItem) {
-                            firstItemId = item.id;
-                            foundItem = true;
-                        }
-                    });
-                    
-                    if (foundItem) {
-                        player->useItem(firstItemId);
-                    }
-                }
-                return;
-            case sf::Keyboard::Key::Num1:
-                // Activate skill 1
-                activateSkill(1);
-                return;
-            case sf::Keyboard::Key::Num2:
-                // Activate skill 2
-                activateSkill(2);
-                return;
-            case sf::Keyboard::Key::Num3:
-                // Activate skill 3
-                activateSkill(3);
-                return;
-            case sf::Keyboard::Key::Num4:
-                // Activate skill 4
-                activateSkill(4);
-                return;
-            case sf::Keyboard::Key::Num5:
-                // Activate skill 5
-                activateSkill(5);
-                return;
-            case sf::Keyboard::Key::M:
-                // Toggle mini-map
-                uiManager->toggleMiniMap();
-                return;
-            case sf::Keyboard::Key::Space:
-                // Attack nearest enemy
-                if (enemyManager) {
-                    attackNearestEnemy();
-                }
-                return;
-            case sf::Keyboard::Key::H:
-                // Use healing potion
-                if (player && player->usePotion()) {
-                    Position playerPos = player->getPosition();
-                    uiManager->addFloatingText("+50 HP", 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f - 10.0f, 
-                        sf::Color(100, 255, 100));
-                }
-                return;
-            case sf::Keyboard::Key::E:
-                // CHANGE: 2025-11-10 - E key now handles: pickup loot, open doors, descend stairs (priority order)
-                {
-                    // Priority 1: Pick up loot if adjacent
-                    bool pickedUpLoot = false;
-                    for (auto it = loots.begin(); it != loots.end(); ++it) {
-                        if (it->isAdjacentTo(currentPos.x, currentPos.y)) {
-                            const ItemNew& item = it->getItem();
-                            std::cout << "[DEBUG] Player picked up " << item.name << std::endl;
-                            
-                            // Check if it's gold/treasure and add gold
-                            if (item.type == "treasure") {
-                                player->addGold(item.value);
-                                uiManager->addFloatingText("+" + std::to_string(item.value) + " Gold", 
-                                    currentPos.x * 32.0f, currentPos.y * 32.0f - 10.0f, 
-                                    sf::Color(255, 215, 0));  // Golden color
-                            } else {
-                                // Add to new inventory system
-                                player->addItem(item);
-                                
-                                // Show pickup message
-                                uiManager->addFloatingText("+" + item.name, 
-                                    currentPos.x * 32.0f, currentPos.y * 32.0f - 10.0f, 
-                                    item.getRarityColor());
-                            }
-                            
-                            std::cout << "INFO: Player picked up " << item.name 
-                                      << ". New inventory size: " << player->getInventoryNew().size() << std::endl;
-                            
-                            loots.erase(it);
-                            pickedUpLoot = true;
-                            break;
-                        }
-                    }
-                    if (pickedUpLoot) return;
-                    
-                    // Priority 2: Open door if adjacent
-                    for (auto& door : doors) {
-                        int dx = std::abs(door.x - currentPos.x);
-                        int dy = std::abs(door.y - currentPos.y);
-                        if (dx <= 1 && dy <= 1 && !door.isOpen) {
-                            if (door.requiresKey && !player->hasItem("dungeon_key")) {
-                                uiManager->addFloatingText("Locked - Need Key", 
-                                    currentPos.x * 32.0f, currentPos.y * 32.0f - 10.0f, 
-                                    sf::Color(255, 100, 100));
-                                return;
-                            }
-                            
-                            door.isOpen = true;
-                            dungeon->setTile(door.x, door.y, TileType::Floor);
-                            std::cout << "[DEBUG] Door opened at (" << door.x << ", " << door.y << ") by player" << std::endl;
-                            
-                            uiManager->addFloatingText("Door Opened", 
-                                currentPos.x * 32.0f, currentPos.y * 32.0f - 10.0f, 
-                                sf::Color(100, 255, 100));
-                            return;
-                        }
-                    }
-                    
-                    // Priority 3: Descend stairs (when adjacent)
-                    if (dungeon->isAdjacentToStairs(currentPos.x, currentPos.y)) {
-                        // Check if all enemies are defeated
-                        if (enemyManager && !enemyManager->isEmpty()) {
-                            std::cout << "[Floor] Cannot descend - enemies still remain!" << std::endl;
-                            uiManager->addFloatingText("Defeat all enemies first!", 
-                                currentPos.x * 32.0f, currentPos.y * 32.0f - 10.0f, 
-                                sf::Color(255, 100, 100));
-                        } else {
-                            std::cout << "[DEBUG] Floor -> " << (currentFloor + 1) << std::endl;
-                            nextFloor();
-                        }
-                    } else {
-                        // Show hint if not near anything interactive
-                        uiManager->addFloatingText("Nothing nearby", 
-                            currentPos.x * 32.0f, currentPos.y * 32.0f - 10.0f, 
-                            sf::Color(255, 100, 100));
-                    }
-                }
-                return;
-            case sf::Keyboard::Key::L:
-                // Toggle lighting system
-                if (renderer) {
-                    renderer->toggleLighting();
-                    Position playerPos = player->getPosition();
-                    std::string msg = renderer->isLightingEnabled() ? "Lighting ON" : "Lighting OFF";
-                    uiManager->addFloatingText(msg, 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f - 10.0f, 
-                        sf::Color(255, 255, 100));
-                }
-                return;
-            case sf::Keyboard::Key::F5:
-                // Toggle retro mode (asset pack)
-                AssetManager::getInstance().togglePack();
-                if (player && uiManager) {
-                    Position playerPos = player->getPosition();
-                    std::string mode = (AssetManager::getInstance().getCurrentPack() == AssetPack::TinyDungeon) 
-                                      ? "Colorful Mode" : "Retro Mode";
-                    uiManager->addFloatingText(mode, 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f - 10.0f, 
-                        sf::Color(255, 200, 100));
-                }
-                return;
-            case sf::Keyboard::Key::F3:
-                // Toggle bounding box debug display
-                debugShowBoundingBoxes = !debugShowBoundingBoxes;
-                if (player && uiManager) {
-                    Position playerPos = player->getPosition();
-                    std::string msg = debugShowBoundingBoxes ? "Debug Boxes ON" : "Debug Boxes OFF";
-                    uiManager->addFloatingText(msg, 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f - 10.0f, 
-                        sf::Color(0, 255, 255));
-                }
-                std::cout << "[Debug] Bounding boxes " << (debugShowBoundingBoxes ? "ENABLED" : "DISABLED") << std::endl;
-                std::cout << "[Debug] F3 toggle - rendering will show collision boxes for player and enemies" << std::endl;
-                return;
-            case sf::Keyboard::Key::F4:
-                // Toggle 1-bit retro mode
-                debugRetroMode = !debugRetroMode;
-                if (player && uiManager) {
-                    Position playerPos = player->getPosition();
-                    std::string msg = debugRetroMode ? "1-Bit Retro Mode ON" : "1-Bit Retro Mode OFF";
-                    uiManager->addFloatingText(msg, 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f - 10.0f, 
-                        sf::Color(255, 255, 0));
-                }
-                std::cout << "[Debug] 1-bit retro mode " << (debugRetroMode ? "ENABLED" : "DISABLED") << std::endl;
-                std::cout << "[Debug] F4 toggle - rendering will switch to monochrome palettes" << std::endl;
-                return;
-            case sf::Keyboard::Key::Escape:
-                // Close all panels or exit game over screen
-                if (currentState == GameState::GameOver) {
-                    window.close();
-                    isRunning = false;
+        // Backtrack
+        case sf::Keyboard::Key::B:
+            player->backtrack();
+            return;
+        
+        // UI toggles
+        case sf::Keyboard::Key::I: uiManager->toggleInventory(); return;
+        case sf::Keyboard::Key::K: uiManager->toggleSkillTree(); return;
+        case sf::Keyboard::Key::M: uiManager->toggleMiniMap(); return;
+        case sf::Keyboard::Key::P: if (shop) shop->toggle(); return;
+        case sf::Keyboard::Key::Tab:
+            if (uiManager) {
+                const auto winSize = window.getSize();
+                uiManager->toggleItemWheel({winSize.x / 2.f, winSize.y / 2.f}, player.get());
+            }
+            return;
+        
+        // Quick Save/Load
+        case sf::Keyboard::Key::F6:
+            if (player && dungeon && skillTree) {
+                auto& save = SaveSystem::getInstance();
+                if (save.saveGame("quicksave", *player, *dungeon, *skillTree, currentFloor)) {
+                    showText("Game Saved!", sf::Color(100, 255, 100));
                 } else {
-                    uiManager->hideAll();
+                    showText("Save Failed!", sf::Color(255, 100, 100));
                 }
-                return;
-            default:
-                return;
-        }
+            }
+            return;
         
-        // Check if new position is walkable
-        if (dungeon->isWalkable(newPos.x, newPos.y)) {
-            player->moveTo(newPos);
-            
-            // Check if player stepped on exit stairs
-            if (newPos.x == exitStairsPosition.x && newPos.y == exitStairsPosition.y) {
-                TileType tileAtPos = dungeon->getTile(newPos.x, newPos.y);
-                if (tileAtPos == TileType::Exit) {
-                    nextFloor();
+        case sf::Keyboard::Key::F7:
+            if (player && dungeon && skillTree) {
+                auto& save = SaveSystem::getInstance();
+                if (save.loadGame("quicksave", *player, *dungeon, *skillTree, currentFloor)) {
+                    showText("Game Loaded!", sf::Color(100, 255, 100));
+                } else {
+                    showText("No Save Found!", sf::Color(255, 200, 100));
+                }
+            }
+            return;
+
+        
+        // Quick skill unlock
+        case sf::Keyboard::Key::O:
+            if (skillTree && skillTree->getAvailablePoints() > 0) {
+                auto tryUnlock = [&](auto node, int hotkey) -> bool {
+                    if (!node || node->data.unlocked || !skillTree->canUnlock(node)) return false;
+                    if (node->data.type == "active" && node->data.hotkey == 0) node->data.hotkey = hotkey;
+                    skillTree->unlockSkill(node);
+                    std::string info = (node->data.hotkey > 0) ? " [" + std::to_string(node->data.hotkey) + "]" : "";
+                    showText("Unlocked: " + node->data.name + info, sf::Color(100, 255, 100), 0);
+                    return true;
+                };
+                
+                auto root = skillTree->getRoot();
+                if (!root || 
+                    !(root->left && tryUnlock(root->left, 2)) &&
+                    !(root->left && root->left->left && tryUnlock(root->left->left, 3)) &&
+                    !(root->left && root->left->left && root->left->left->left && tryUnlock(root->left->left->left, 4)) &&
+                    !(root->right && root->right->right && tryUnlock(root->right->right, 5)) &&
+                    !(root->right && tryUnlock(root->right, 0))) {
+                    showText("No skills available!", sf::Color(255, 100, 100));
+                }
+            } else if (skillTree) {
+                showText("No skill points!", sf::Color(255, 200, 100));
+            }
+            return;
+        
+        // Use first inventory item
+        case sf::Keyboard::Key::U:
+            if (player->getInventoryNew().size() > 0) {
+                std::string firstId;
+                player->getInventoryNew().traverse([&](const ItemNew& item) {
+                    if (firstId.empty()) firstId = item.id;
+                });
+                if (!firstId.empty()) player->useItem(firstId);
+            }
+            return;
+        
+        // Skills (1-5)
+        case sf::Keyboard::Key::Num1: activateSkill(1); return;
+        case sf::Keyboard::Key::Num2: activateSkill(2); return;
+        case sf::Keyboard::Key::Num3: activateSkill(3); return;
+        case sf::Keyboard::Key::Num4: activateSkill(4); return;
+        case sf::Keyboard::Key::Num5: activateSkill(5); return;
+        
+        // Combat
+        case sf::Keyboard::Key::Space:
+            if (enemyManager) attackNearestEnemy();
+            return;
+        
+        // Healing potion
+        case sf::Keyboard::Key::H:
+            if (player->usePotion()) showText("+50 HP", sf::Color(100, 255, 100));
+            return;
+        
+        // Interaction (E key) - pickup loot, open doors, descend stairs
+        case sf::Keyboard::Key::E: {
+            // Priority 1: Loot pickup
+            for (auto it = loots.begin(); it != loots.end(); ++it) {
+                if (it->isAdjacentTo(currentPos.x, currentPos.y)) {
+                    const ItemNew& item = it->getItem();
+                    if (item.type == "treasure") {
+                        player->addGold(item.value);
+                        showText("+" + std::to_string(item.value) + " Gold", sf::Color(255, 215, 0));
+                    } else {
+                        player->addItem(item);
+                        showText("+" + item.name, item.getRarityColor());
+                    }
+                    loots.erase(it);
                     return;
                 }
             }
             
-            // After player moves, enemies take their turn (move toward player and attack if nearby)
-            moveEnemiesWithBFS();
+            // Priority 2: Door
+            for (auto& door : doors) {
+                if (std::abs(door.x - currentPos.x) <= 1 && std::abs(door.y - currentPos.y) <= 1 && !door.isOpen) {
+                    if (door.requiresKey && !player->hasItem("dungeon_key")) {
+                        showText("Locked - Need Key", sf::Color(255, 100, 100));
+                        return;
+                    }
+                    door.isOpen = true;
+                    dungeon->setTile(door.x, door.y, TileType::Floor);
+                    showText("Door Opened", sf::Color(100, 255, 100));
+                    return;
+                }
+            }
+            
+            // Priority 3: Stairs
+            if (dungeon->isAdjacentToStairs(currentPos.x, currentPos.y)) {
+                if (enemyManager && !enemyManager->isEmpty()) {
+                    showText("Defeat all enemies first!", sf::Color(255, 100, 100));
+                } else {
+                    nextFloor();
+                }
+            } else {
+                showText("Nothing nearby", sf::Color(150, 150, 150));
+            }
+            return;
         }
+        
+        // Lighting toggle
+        case sf::Keyboard::Key::L:
+            if (renderer) {
+                renderer->toggleLighting();
+                showText(renderer->isLightingEnabled() ? "Lighting ON" : "Lighting OFF", sf::Color(255, 255, 100));
+            }
+            return;
+        
+        // Debug toggles
+        case sf::Keyboard::Key::F3:
+            debugShowBoundingBoxes = !debugShowBoundingBoxes;
+            showText(debugShowBoundingBoxes ? "Debug Boxes ON" : "Debug Boxes OFF", sf::Color(0, 255, 255));
+            return;
+        
+        case sf::Keyboard::Key::F4:
+            debugRetroMode = !debugRetroMode;
+            showText(debugRetroMode ? "1-Bit Mode ON" : "1-Bit Mode OFF", sf::Color(255, 255, 0));
+            return;
+        
+        case sf::Keyboard::Key::F5:
+            AssetManager::getInstance().togglePack();
+            showText(AssetManager::getInstance().getCurrentPack() == AssetPack::TinyDungeon ? "Colorful Mode" : "Retro Mode", 
+                     sf::Color(255, 200, 100));
+            return;
+        
+        // Escape
+        case sf::Keyboard::Key::Escape:
+            if (currentState == GameState::GameOver) {
+                window.close();
+                isRunning = false;
+            } else {
+                uiManager->hideAll();
+            }
+            return;
+        
+        default: return;
+    }
+    
+    // Movement execution
+    if (dungeon->isWalkable(newPos.x, newPos.y)) {
+        player->moveTo(newPos);
+        
+        // Auto-descend if stepping on exit
+        if (newPos.x == exitStairsPosition.x && newPos.y == exitStairsPosition.y &&
+            dungeon->getTile(newPos.x, newPos.y) == TileType::Exit) {
+            nextFloor();
+            return;
+        }
+        
+        moveEnemiesWithBFS();
     }
 }
 
+
 void Game::update(float deltaTime) {
-    // Update FPS tracker
-    currentFPS = 1.f / deltaTime;
+    // Timing
+    totalTime += deltaTime;
+    currentFPS = (deltaTime > 0.f) ? 1.f / deltaTime : 0.f;
     
-    // Update combo timer
-    if (comboTimer > 0) {
-        comboTimer -= deltaTime;
-        if (comboTimer <= 0) {
-            resetCombo();
-        }
+    // Combo decay
+    if (comboTimer > 0.f && (comboTimer -= deltaTime) <= 0.f) {
+        resetCombo();
     }
     
-    // Update dynamic systems
+    // Core systems
     updateScreenShake(deltaTime);
     updateCamera(deltaTime);
     
+    // State-specific updates
     switch (currentState) {
-        case GameState::MainMenu:
-            updateMainMenu(deltaTime);
-            break;
-        case GameState::Playing:
-            updatePlaying(deltaTime);
-            break;
-        default:
-            break;
+        case GameState::MainMenu: updateMainMenu(deltaTime); break;
+        case GameState::Playing:  updatePlaying(deltaTime);  break;
+        default: break;
     }
     
-    // ✨ Update combat effects
+    // World updates (always active for animations)
     updateCombatEffects(deltaTime);
-    
-    // CHANGE: 2025-11-10 - Update loot animations
     updateLoots(deltaTime);
     
+    // UI
     if (uiManager && player) {
         uiManager->update(deltaTime);
         uiManager->updateHUD(*player);
     }
 }
 
-void Game::updateMainMenu(float deltaTime) {
-    // Menu update logic
+void Game::updateMainMenu(float /* deltaTime */) {
+    // Menu update logic - handled by UI state
 }
 
 void Game::updatePlaying(float deltaTime) {
-    // 🎮 REAL-TIME UPDATES - Continuous animations even without player input
+    // Real-time updates for animations
+    if (player) player->update(deltaTime);
     
-    // Update player dash cooldown and timers
-    if (player) {
-        player->update(deltaTime);
-    }
-    
-    // Update enemy AI with player position for detection/chase
+    // Update enemy targeting and AI
     if (enemyManager && player) {
-        Position playerPos = player->getPosition();
-        // Set player position as target for all enemies (for detection)
+        const Position playerPos = player->getPosition();
         for (auto& enemy : enemyManager->getMutableEnemies()) {
             enemy.targetX = playerPos.x;
             enemy.targetY = playerPos.y;
         }
-        // Update enemy animations, patrol, chase AI
         enemyManager->update(deltaTime);
     }
     
-    // Update dungeon ambient particles (torch sparks etc)
-    if (dungeon) {
-        dungeon->updateAmbientParticles(deltaTime);
-    }
+    // Dungeon ambient effects
+    if (dungeon) dungeon->updateAmbientParticles(deltaTime);
 }
 
 void Game::attackNearestEnemy() {
     if (!player || !enemyManager || !uiManager) return;
     
-    Position playerPos = player->getPosition();
-    EnemyData* nearestEnemy = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
+    const Position playerPos = player->getPosition();
+    const float px = playerPos.x * TILE_SIZE;
+    const float py = playerPos.y * TILE_SIZE;
     
-    if (!nearestEnemy) {
-        std::cout << "[Combat] No enemies to attack!" << std::endl;
-        return;
-    }
+    EnemyData* enemy = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
+    if (!enemy) return;
     
-    // Check if enemy is in range (adjacent tiles)
-    int dx = abs(nearestEnemy->x - playerPos.x);
-    int dy = abs(nearestEnemy->y - playerPos.y);
-    int distance = dx + dy;
-    
+    // Range check
+    const int distance = std::abs(enemy->x - playerPos.x) + std::abs(enemy->y - playerPos.y);
     if (distance > ATTACK_RANGE_TILES) {
-        std::cout << "[Combat] " << nearestEnemy->name << " is too far away!" << std::endl;
-        uiManager->addFloatingText("Too far!", playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(150, 150, 150));
+        uiManager->addFloatingText("Too far!", px, py, sf::Color(150, 150, 150));
         return;
     }
     
-    // Player attacks enemy
-    int damage = player->attackEnemy();
-    nearestEnemy->health -= damage;
+    // Apply damage
+    const float ex = enemy->x * TILE_SIZE;
+    const float ey = enemy->y * TILE_SIZE;
+    const int damage = player->attackEnemy();
+    enemy->health -= damage;
     
-    // ✨ Add visual attack effect at enemy position
-    addCombatEffect("swing", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_SHORT);
+    addCombatEffect("swing", ex, ey, EFFECT_DURATION_SHORT);
+    uiManager->addFloatingText("-" + std::to_string(damage), ex, ey, sf::Color(255, 150, 50));
     
-    // Show damage text at enemy position
-    uiManager->addFloatingText("-" + std::to_string(damage), 
-        nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, sf::Color(255, 150, 50));
-    
-    std::cout << "[Combat] " << nearestEnemy->name << " HP: " << nearestEnemy->health << "/" << nearestEnemy->maxHealth << std::endl;
-    
-    // Check if enemy died
-    if (nearestEnemy->health <= 0) {
-        std::cout << "[Combat] " << nearestEnemy->name << " defeated!" << std::endl;
-        std::cout << "DEBUG: Enemy " << nearestEnemy->name << " died at (" << nearestEnemy->x << ", " << nearestEnemy->y << ")" << std::endl;
-        
-        // 🎮 Increment combo counter
+    // Handle enemy death
+    if (enemy->health <= 0) {
         incrementCombo();
         
-        // ✨ Add explosion effect when enemy dies - bigger on combos
-        float effectScale = 1.f + (comboCounter * 0.1f);
-        addCombatEffect("explosion", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_LONG * effectScale);
-        
-        // Screen shake on kill
+        // Visual feedback scaled by combo
+        const float scale = 1.f + comboCounter * 0.1f;
+        addCombatEffect("explosion", ex, ey, EFFECT_DURATION_LONG * scale);
         applyScreenShake(5.f + comboCounter * 0.5f, 0.2f);
+        uiManager->setCombo(comboCounter);
         
-        // 🎮 Update UI combo display
-        if (uiManager) {
-            uiManager->setCombo(comboCounter);
-        }
+        // Combo text
+        const std::string msg = comboCounter > 1 
+            ? "x" + std::to_string(comboCounter) + " COMBO!" 
+            : "DEFEATED!";
+        const sf::Color color = comboCounter > 3 ? sf::Color(255, 100, 100) : sf::Color(255, 215, 0);
+        uiManager->addFloatingText(msg, ex, ey, color);
         
-        // Show defeat text with combo
-        std::string defeatMsg = comboCounter > 1 ? "x" + std::to_string(comboCounter) + " COMBO!" : "DEFEATED!";
-        sf::Color defeatColor = comboCounter > 3 ? sf::Color(255, 100, 100) : sf::Color(255, 215, 0);
-        uiManager->addFloatingText(defeatMsg, 
-            nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, defeatColor);
+        // XP with combo bonus
+        int xp = BASE_XP_GAIN + currentFloor * XP_PER_FLOOR;
+        xp = static_cast<int>(xp * (1.f + comboCounter * COMBO_DAMAGE_MULT));
+        uiManager->addFloatingText("+" + std::to_string(xp) + " XP", px, py, sf::Color(100, 255, 100));
+        player->addExperience(xp);
         
-        // Show XP gain with combo bonus
-        int xpGain = BASE_XP_GAIN + (currentFloor * XP_PER_FLOOR); // More XP for deeper floors
-        xpGain = static_cast<int>(xpGain * (1.f + comboCounter * COMBO_DAMAGE_MULT));  // Combo XP bonus
-        uiManager->addFloatingText("+" + std::to_string(xpGain) + " XP", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(100, 255, 100));
-        
-        player->addExperience(xpGain);
-        
-        // CHANGE: 2025-11-11 - Grant skill points when player levels up
-        int earnedPoints = player->getSkillPointsEarned();
-        if (earnedPoints > 0 && skillTree) {
-            skillTree->addPoints(earnedPoints);
+        // Skill points on level up
+        if (int pts = player->getSkillPointsEarned(); pts > 0 && skillTree) {
+            skillTree->addPoints(pts);
             player->clearSkillPoints();
-            
-            uiManager->addFloatingText("+" + std::to_string(earnedPoints) + " Skill Point" + (earnedPoints > 1 ? "s" : "") + "!", 
-                playerPos.x * 32.0f, playerPos.y * 32.0f - 30.0f, 
-                sf::Color(255, 215, 0));  // Golden text
+            uiManager->addFloatingText("+" + std::to_string(pts) + " Skill Point" + (pts > 1 ? "s" : "") + "!", 
+                px, py - 30.f, sf::Color(255, 215, 0));
         }
         
-        // CHANGE: 2025-11-10 - New loot drop system using DropTable
-        if (!nearestEnemy->dropTableJson.empty()) {
-            DropTable dropTable = DropTable::fromJson(nearestEnemy->dropTableJson);
-            std::string dropId = dropTable.roll();
-            
-            std::cout << "DEBUG: Rolled drop -> " << dropId << " (from " << dropTable.size() << " entries)" << std::endl;
-            
-            if (!dropId.empty() && ItemManager::getInstance().hasItem(dropId)) {
-                ItemNew item = ItemManager::getInstance().getItemById(dropId);
-                spawnLootAt(sf::Vector2i(nearestEnemy->x, nearestEnemy->y), item);
-                std::cout << "INFO: Spawned loot " << dropId << " at (" << nearestEnemy->x << ", " << nearestEnemy->y << ")" << std::endl;
+        // Loot drops
+        auto& items = ItemManager::getInstance();
+        if (!enemy->dropTableJson.empty()) {
+            DropTable table = DropTable::fromJson(enemy->dropTableJson);
+            if (std::string dropId = table.roll(); !dropId.empty() && items.hasItem(dropId)) {
+                spawnLootAt(sf::Vector2i(enemy->x, enemy->y), items.getItemById(dropId));
             }
         } else {
-            // CHANGE: 2025-12-04 - Use new weighted random loot table generator (DSA)
-            // Generates variety in drops based on enemy level and floor
-            int enemyLevel = std::max(1, nearestEnemy->maxHealth / 20);  // Estimate level from HP
-            auto lootTable = ItemManager::getInstance().generateLootTable(enemyLevel, currentFloor, 2);
-            
-            for (const auto& item : lootTable) {
-                spawnLootAt(sf::Vector2i(nearestEnemy->x, nearestEnemy->y), item);
-                std::cout << "[Loot] Dropped " << item.name << " (" << item.getRarityName() << ")" << std::endl;
+            int level = std::max(1, enemy->maxHealth / 20);
+            auto loot = items.generateLootTable(level, currentFloor, 2);
+            for (const auto& item : loot) {
+                spawnLootAt(sf::Vector2i(enemy->x, enemy->y), item);
             }
-            
-            // Fallback gold drop if no items dropped
-            if (lootTable.empty()) {
-                dropItemFromEnemy(nearestEnemy->name, nearestEnemy->x, nearestEnemy->y);
+            if (loot.empty()) {
+                dropItemFromEnemy(enemy->name, enemy->x, enemy->y);
             }
         }
         
-        enemyManager->removeEnemy(nearestEnemy->id);
-        
-        // Check if all enemies defeated to spawn exit
+        enemyManager->removeEnemy(enemy->id);
         checkExitAccess();
-        return;
     }
-    
-    // NO COUNTER-ATTACK - Enemies only attack on their turn when nearby
-    // This makes combat more strategic: enemies attack when you're close after you move
 }
 
 void Game::activateSkill(int hotkey) {
     if (!player || !skillTree || !enemyManager || !uiManager) return;
     
-    // Get the skill by hotkey
     Skill* skill = skillTree->getSkillByHotkey(hotkey);
+    if (!skill) return;
     
-    if (!skill) {
-        std::cout << "[Skills] No skill assigned to hotkey " << hotkey << std::endl;
-        return;
-    }
+    const Position playerPos = player->getPosition();
+    const float px = playerPos.x * TILE_SIZE;
+    const float py = playerPos.y * TILE_SIZE;
     
+    // Validation checks with visual feedback
     if (!skill->unlocked) {
-        std::cout << "[Skills] Skill " << skill->name << " is not unlocked!" << std::endl;
-        Position playerPos = player->getPosition();
-        uiManager->addFloatingText("Not unlocked!", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(200, 50, 50));
+        uiManager->addFloatingText("Not unlocked!", px, py, sf::Color(200, 50, 50));
         return;
     }
-    
     if (skill->currentCooldown > 0) {
-        std::cout << "[Skills] " << skill->name << " is on cooldown! (" << skill->currentCooldown << " turns left)" << std::endl;
-        Position playerPos = player->getPosition();
-        uiManager->addFloatingText("On cooldown!", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(200, 200, 50));
+        uiManager->addFloatingText("On cooldown!", px, py, sf::Color(200, 200, 50));
         return;
     }
-    
     if (!player->useMana(skill->manaCost)) {
-        Position playerPos = player->getPosition();
-        uiManager->addFloatingText("Not enough mana!", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(100, 100, 255));
+        uiManager->addFloatingText("Not enough mana!", px, py, sf::Color(100, 100, 255));
         return;
     }
     
-    // Activate the skill
-    Position playerPos = player->getPosition();
-    std::cout << "[Skills] Activating " << skill->name << "!" << std::endl;
+    // Helper: Apply single-target damage to nearest enemy
+    auto attackNearest = [&](const std::string& effect, const std::string& label, sf::Color color) -> bool {
+        EnemyData* target = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
+        if (!target) return false;
+        
+        addCombatEffect(effect, target->x * TILE_SIZE, target->y * TILE_SIZE, EFFECT_DURATION_MEDIUM);
+        
+        int damage = player->attackEnemy() + skill->damage;
+        target->health -= damage;
+        uiManager->addFloatingText("-" + std::to_string(damage) + " " + label, 
+            target->x * TILE_SIZE, target->y * TILE_SIZE, color);
+        
+        if (target->health <= 0) {
+            addCombatEffect("explosion", target->x * TILE_SIZE, target->y * TILE_SIZE, EFFECT_DURATION_LONG);
+            enemyManager->removeEnemy(target->id);
+            checkExitAccess();
+        }
+        return true;
+    };
     
+    // Helper: AOE damage to enemies within range
+    auto aoeAttack = [&](int range, const std::string& effect, const std::string& label, sf::Color color) -> int {
+        int hits = 0;
+        for (auto& enemy : enemyManager->getEnemies()) {
+            if (std::abs(enemy.x - playerPos.x) <= range && std::abs(enemy.y - playerPos.y) <= range) {
+                addCombatEffect(effect, enemy.x * TILE_SIZE, enemy.y * TILE_SIZE, EFFECT_DURATION_SHORT);
+                const_cast<EnemyData&>(enemy).health -= skill->damage;
+                uiManager->addFloatingText("-" + std::to_string(skill->damage) + label, 
+                    enemy.x * TILE_SIZE, enemy.y * TILE_SIZE, color);
+                hits++;
+            }
+        }
+        enemyManager->removeDeadEnemies();
+        checkExitAccess();
+        return hits;
+    };
+    
+    // Execute skill based on ID
     if (skill->id == "slash") {
-        // Basic attack with bonus damage
-        EnemyData* nearestEnemy = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
-        if (nearestEnemy) {
-            // ✨ Large swing effect for slash
-            addCombatEffect("large_swing", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_MEDIUM);
-            
-            int totalDamage = player->attackEnemy() + skill->damage;
-            nearestEnemy->health -= totalDamage;
-            uiManager->addFloatingText("-" + std::to_string(totalDamage) + " SLASH", 
-                nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, sf::Color(255, 200, 50));
-            
-            if (nearestEnemy->health <= 0) {
-                addCombatEffect("explosion", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_LONG);
-                enemyManager->removeEnemy(nearestEnemy->id);
-                checkExitAccess();
-            }
-        }
-    } else if (skill->id == "power_strike") {
-        // Powerful single-target attack
-        EnemyData* nearestEnemy = enemyManager->findNearestEnemy(playerPos.x, playerPos.y);
-        if (nearestEnemy) {
-            // ✨ Large swing + explosion for power strike
-            addCombatEffect("large_swing", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_MEDIUM);
-            
-            int totalDamage = player->attackEnemy() + skill->damage;
-            nearestEnemy->health -= totalDamage;
-            uiManager->addFloatingText("-" + std::to_string(totalDamage) + " POWER!", 
-                nearestEnemy->x * 32.0f, nearestEnemy->y * 32.0f, sf::Color(255, 100, 0));
-            
-            if (nearestEnemy->health <= 0) {
-                addCombatEffect("magic_explosion", nearestEnemy->x * TILE_SIZE, nearestEnemy->y * TILE_SIZE, EFFECT_DURATION_EXTRA_LONG);
-                enemyManager->removeEnemy(nearestEnemy->id);
-                checkExitAccess();
-            }
-        }
-    } else if (skill->id == "whirlwind" && skill->aoe) {
-        // AOE attack - hit all adjacent enemies
-        int enemiesHit = 0;
-        for (auto& enemy : enemyManager->getEnemies()) {
-            int dx = abs(enemy.x - playerPos.x);
-            int dy = abs(enemy.y - playerPos.y);
-            if (dx <= 1 && dy <= 1) {  // Adjacent tiles
-                // ✨ Swing effect for each hit enemy
-                addCombatEffect("swing", enemy.x * TILE_SIZE, enemy.y * TILE_SIZE, EFFECT_DURATION_SHORT);
-                
-                const_cast<EnemyData&>(enemy).health -= skill->damage;
-                uiManager->addFloatingText("-" + std::to_string(skill->damage), 
-                    enemy.x * 32.0f, enemy.y * 32.0f, sf::Color(255, 150, 50));
-                enemiesHit++;
-            }
-        }
-        // ✨ Large swing at player position for whirlwind visual
-        addCombatEffect("large_swing", playerPos.x * TILE_SIZE, playerPos.y * TILE_SIZE, EFFECT_DURATION_LONG);
-        
-        uiManager->addFloatingText("WHIRLWIND! (x" + std::to_string(enemiesHit) + ")", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f - 20.0f, sf::Color(255, 255, 100));
-        enemyManager->removeDeadEnemies();
-        checkExitAccess();
-    } else if (skill->id == "flame_wave" && skill->aoe) {
-        // Fire AOE with burn
-        int enemiesHit = 0;
-        for (auto& enemy : enemyManager->getEnemies()) {
-            int dx = abs(enemy.x - playerPos.x);
-            int dy = abs(enemy.y - playerPos.y);
-            if (dx <= 2 && dy <= 2) {  // Larger radius
-                // ✨ Fire explosion effect for each enemy hit
-                addCombatEffect("fire_explosion", enemy.x * 32.0f, enemy.y * 32.0f, 0.5f);
-                
-                const_cast<EnemyData&>(enemy).health -= skill->damage;
-                uiManager->addFloatingText("-" + std::to_string(skill->damage) + " BURN", 
-                    enemy.x * 32.0f, enemy.y * 32.0f, sf::Color(255, 100, 0));
-                enemiesHit++;
-            }
-        }
-        // ✨ Large fire explosion at player position
-        addCombatEffect("fire_explosion", playerPos.x * 32.0f, playerPos.y * 32.0f, 0.6f);
-        
-        uiManager->addFloatingText("FLAME WAVE! (x" + std::to_string(enemiesHit) + ")", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f - 20.0f, sf::Color(255, 50, 0));
-        enemyManager->removeDeadEnemies();
-        checkExitAccess();
-    } else if (skill->id == "shadow_step") {
-        // Dash ability - for now just show message (requires direction input)
-        // ✨ Ghost orb effect for shadow step
-        addCombatEffect("ghost_orb", playerPos.x * 32.0f, playerPos.y * 32.0f, 0.4f);
-        
-        uiManager->addFloatingText("SHADOW STEP!", 
-            playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(150, 50, 200));
-        std::cout << "[Skills] Shadow Step activated (movement enhanced)" << std::endl;
+        attackNearest("large_swing", "SLASH", sf::Color(255, 200, 50));
+    } 
+    else if (skill->id == "power_strike") {
+        attackNearest("large_swing", "POWER!", sf::Color(255, 100, 0));
+    } 
+    else if (skill->id == "whirlwind" && skill->aoe) {
+        int hits = aoeAttack(1, "swing", "", sf::Color(255, 150, 50));
+        addCombatEffect("large_swing", px, py, EFFECT_DURATION_LONG);
+        uiManager->addFloatingText("WHIRLWIND! (x" + std::to_string(hits) + ")", px, py - 20.f, sf::Color(255, 255, 100));
+    } 
+    else if (skill->id == "flame_wave" && skill->aoe) {
+        int hits = aoeAttack(2, "fire_explosion", " BURN", sf::Color(255, 100, 0));
+        addCombatEffect("fire_explosion", px, py, EFFECT_DURATION_LONG);
+        uiManager->addFloatingText("FLAME WAVE! (x" + std::to_string(hits) + ")", px, py - 20.f, sf::Color(255, 50, 0));
+    } 
+    else if (skill->id == "shadow_step") {
+        addCombatEffect("ghost_orb", px, py, EFFECT_DURATION_SHORT);
+        uiManager->addFloatingText("SHADOW STEP!", px, py, sf::Color(150, 50, 200));
     }
     
-    // Set cooldown and show feedback
+    // Set cooldown and trigger enemy turn
     skill->currentCooldown = skill->cooldown;
-    uiManager->addFloatingText(skill->name + "!", 
-        playerPos.x * 32.0f, playerPos.y * 32.0f - 30.0f, sf::Color(100, 200, 255));
-    
-    // Update cooldowns after turn
+    uiManager->addFloatingText(skill->name + "!", px, py - 30.f, sf::Color(100, 200, 255));
     skillTree->updateCooldowns();
-    
-    // Enemies take their turn
     moveEnemiesWithBFS();
 }
 
 void Game::moveEnemiesWithBFS() {
     if (!enemyManager || !dungeon || !player) return;
     
-    // CHANGE: 2025-11-14 - Check for room clear and open auto-clearing doors
+    // Open auto-clearing doors when all enemies are defeated
     if (enemyManager->isEmpty()) {
-        // All enemies defeated - open all clearable doors
         for (auto& door : doors) {
             if (door.openOnClear && !door.isOpen) {
                 door.isOpen = true;
-                if (dungeon) {
-                    dungeon->setTile(door.x, door.y, TileType::Floor);
-                }
-                std::cout << "[Door] Room cleared. Auto-opened door at (" << door.x << ", " << door.y << ")" << std::endl;
+                dungeon->setTile(door.x, door.y, TileType::Floor);
             }
         }
+        return;  // No enemies to process
     }
     
-    Position playerPos = player->getPosition();
+    const Position playerPos = player->getPosition();
     auto& enemies = const_cast<std::vector<EnemyData>&>(enemyManager->getEnemies());
     
     for (auto& enemy : enemies) {
-        // Calculate distance to player
-        int dx = abs(enemy.x - playerPos.x);
-        int dy = abs(enemy.y - playerPos.y);
-        int distance = dx + dy;
+        const int dx = std::abs(enemy.x - playerPos.x);
+        const int dy = std::abs(enemy.y - playerPos.y);
+        const int distance = dx + dy;
         
-        // If within attack range, attack instead of moving
+        // Attack if in range
         if (distance <= enemy.attackRange) {
-            // Enemy attacks player!
-            std::cout << "[Combat] " << enemy.name << " attacks!" << std::endl;
             int damage = std::max(0, enemy.damage - player->getDefense());
             player->takeDamage(damage);
             
-            // Add visual effect for attack
-            if (enemy.attackRange > 1) {
-                // ✨ Ranged attack (arrow/projectile)
-                addCombatEffect("arrow", enemy.x * 32.0f, enemy.y * 32.0f, 0.4f);
-            } else {
-                // ✨ Melee attack effect on player
-                addCombatEffect("swing", playerPos.x * 32.0f, playerPos.y * 32.0f, 0.3f);
-            }
+            // Visual effect
+            const float effectX = (enemy.attackRange > 1 ? enemy.x : playerPos.x) * TILE_SIZE;
+            const float effectY = (enemy.attackRange > 1 ? enemy.y : playerPos.y) * TILE_SIZE;
+            addCombatEffect(enemy.attackRange > 1 ? "arrow" : "swing", effectX, effectY, EFFECT_DURATION_SHORT);
             
-            // Show damage on player
             if (uiManager) {
                 uiManager->addFloatingText("-" + std::to_string(damage), 
-                    playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(255, 50, 50));
-                    
+                    playerPos.x * TILE_SIZE, playerPos.y * TILE_SIZE, sf::Color(255, 50, 50));
+                
                 if (player->getHealth() <= 0) {
-                    std::cout << "[Combat] You have been defeated!" << std::endl;
-                    uiManager->addFloatingText("DEFEATED!", 
-                        playerPos.x * 32.0f, playerPos.y * 32.0f, sf::Color(255, 0, 0));
+                    uiManager->addFloatingText("DEFEATED!", playerPos.x * TILE_SIZE, playerPos.y * TILE_SIZE, sf::Color::Red);
                     setState(GameState::GameOver);
-                    return;  // Stop enemy processing
+                    return;
                 }
             }
-            continue;  // Don't move, just attack
+            continue;  // Attack instead of move
         }
         
-        // Calculate next move using BFS pathfinding
-        auto nextPos = dungeon->findNextMoveToPlayer(enemy.x, enemy.y, playerPos.x, playerPos.y);
+        // Move via BFS pathfinding
+        auto [nextX, nextY] = dungeon->findNextMoveToPlayer(enemy.x, enemy.y, playerPos.x, playerPos.y);
         
-        // Check if enemy would move into player position (shouldn't happen with attack check above)
-        if (nextPos.first == playerPos.x && nextPos.second == playerPos.y) {
-            continue;  // Don't move into player
+        // Skip if moving into player or no change
+        if ((nextX == playerPos.x && nextY == playerPos.y) || 
+            (nextX == enemy.x && nextY == enemy.y)) {
+            continue;
         }
         
-        // Check if position changed (enemy is moving)
-        if (nextPos.first != enemy.x || nextPos.second != enemy.y) {
-            // Make sure no other enemy is at that position
-            bool occupied = false;
-            for (const auto& other : enemies) {
-                if (&other != &enemy && other.x == nextPos.first && other.y == nextPos.second) {
-                    occupied = true;
-                    break;
-                }
-            }
-            
-            // Move enemy if position is free
-            if (!occupied) {
-                enemy.x = nextPos.first;
-                enemy.y = nextPos.second;
-            }
+        // Check if target tile is occupied by another enemy
+        bool occupied = std::any_of(enemies.begin(), enemies.end(), 
+            [&](const EnemyData& other) { return &other != &enemy && other.x == nextX && other.y == nextY; });
+        
+        if (!occupied) {
+            enemy.x = nextX;
+            enemy.y = nextY;
         }
     }
     
-    // CHANGE: 2025-11-14 - Check all rooms for clearance after movement
-    auto rooms = dungeon->getRooms();
-    for (size_t i = 0; i < rooms.size(); i++) {
-        int enemyCount = 0;
-        for (const auto& enemy : enemies) {
-            int roomId = dungeon->getRoomIdAt(enemy.x, enemy.y);
-            if (roomId == static_cast<int>(i)) {
-                enemyCount++;
-            }
-        }
-        dungeon->checkRoomClear(i, enemyCount);
+    // Update room clearance status
+    const auto& rooms = dungeon->getRooms();
+    for (size_t i = 0; i < rooms.size(); ++i) {
+        int count = std::count_if(enemies.begin(), enemies.end(), 
+            [&](const EnemyData& e) { return dungeon->getRoomIdAt(e.x, e.y) == static_cast<int>(i); });
+        dungeon->checkRoomClear(i, count);
     }
 }
+
 
 void Game::render() {
     renderer->begin();
     
-    if (currentState == GameState::Playing || 
-        currentState == GameState::Inventory || 
-        currentState == GameState::SkillTree ||
-        currentState == GameState::GameOver) {
-        
+    const bool inGameState = (currentState == GameState::Playing || 
+                              currentState == GameState::Inventory || 
+                              currentState == GameState::SkillTree ||
+                              currentState == GameState::GameOver);
+    
+    if (inGameState) {
+        // Layer 1: Dungeon tiles
         if (dungeon) {
             renderer->renderDungeon(*dungeon, currentFloor);
         }
         
-        // Render DSA graph paths BEFORE entities (lower layer)
+        // Layer 2: DSA graph visualization
         if (uiManager && dungeon) {
             uiManager->renderGraphPathsOnly(window, *dungeon);
         }
         
-        if (player) {
-            renderer->renderPlayer(*player);
-        }
+        // Layer 3: Entities
+        if (player) renderer->renderPlayer(*player);
+        if (enemyManager) renderer->renderEnemies(*enemyManager);
         
-        if (enemyManager) {
-            renderer->renderEnemies(*enemyManager);
-        }
+        // Layer 4: Loot items
+        auto& assets = AssetManager::getInstance();
+        const Position playerPos = player ? player->getPosition() : Position{-100, -100};
         
-        // CHANGE: 2025-11-10 - Render loot items on ground
         for (const auto& loot : loots) {
-            sf::Texture* iconTexture = AssetManager::getInstance().getTexture(loot.getItem().id);
-            loot.render(window, 32.0f, iconTexture);
+            sf::Texture* iconTex = assets.getTexture(loot.getItem().id);
+            loot.render(window, TILE_SIZE, iconTex);
             
-            // CHANGE: 2025-11-14 - Add premium loot highlighting (using Heap prioritization logic)
-            // Rare and valuable items get a glowing aura effect
             const ItemNew& item = loot.getItem();
+            const float lootX = loot.getX() * TILE_SIZE;
+            const float lootY = loot.getY() * TILE_SIZE;
+            
+            // Premium loot glow with pulsing effect
             if (item.rarity >= 3 || item.value >= 100) {
-                // Draw a glowing border around premium loot
-                sf::RectangleShape premiumGlow(sf::Vector2f(32.0f, 32.0f));
-                premiumGlow.setPosition(sf::Vector2f(loot.getX() * 32.0f, loot.getY() * 32.0f));
-                premiumGlow.setFillColor(sf::Color::Transparent);
-                premiumGlow.setOutlineThickness(3.0f);
-                premiumGlow.setOutlineColor(item.getRarityColor());  // Rarity-based glow color
-                window.draw(premiumGlow);
-                
-                // Pulsing effect by varying outline thickness based on time (optional)
-                // For now, just the static glow is sufficient
+                float pulse = 2.f + std::sin(totalTime * 4.f) * 1.5f;
+                sf::RectangleShape glow({TILE_SIZE, TILE_SIZE});
+                glow.setPosition({lootX, lootY});
+                glow.setFillColor(sf::Color::Transparent);
+                glow.setOutlineThickness(pulse);
+                glow.setOutlineColor(item.getRarityColor());
+                window.draw(glow);
             }
             
-            // Show item name when player is adjacent
-            if (player) {
-                Position playerPos = player->getPosition();
-                if (loot.isAdjacentTo(playerPos.x, playerPos.y)) {
-                    sf::Font font;
-                    if (font.openFromFile("C:/Windows/Fonts/arial.ttf")) {
-                        sf::Text itemNameText(font);
-                        itemNameText.setString(loot.getItem().name);
-                        itemNameText.setCharacterSize(14);
-                        itemNameText.setFillColor(loot.getItem().getRarityColor());
-                        itemNameText.setOutlineThickness(2.0f);
-                        itemNameText.setOutlineColor(sf::Color::Black);
-                        itemNameText.setPosition(sf::Vector2f(
-                            loot.getX() * 32.0f, 
-                            loot.getY() * 32.0f - 20.0f
-                        ));
-                        window.draw(itemNameText);
-                    }
-                }
+            // Item name label when adjacent
+            if (loot.isAdjacentTo(playerPos.x, playerPos.y) && uiManager && uiManager->isFontLoaded()) {
+                const auto& font = uiManager->getFont();
+                sf::Text label(font, item.name, 14);
+                label.setPosition({lootX, lootY - 20.f});
+                label.setFillColor(item.getRarityColor());
+                label.setOutlineThickness(2.f);
+                label.setOutlineColor(sf::Color::Black);
+                window.draw(label);
             }
         }
         
-        // Show pickup prompt when adjacent to loot
+        // Pickup prompt (first adjacent loot only)
         if (uiManager && player) {
-            Position playerPos = player->getPosition();
             for (const auto& loot : loots) {
                 if (loot.isAdjacentTo(playerPos.x, playerPos.y)) {
                     uiManager->renderContextualPrompt(window, "Press E to pick up " + loot.getItem().name);
-                    break;  // Only show one prompt
+                    break;
                 }
             }
         }
         
-        // CHANGE: 2025-11-14 - Debug rendering: Bounding boxes
+        // Debug: Bounding boxes
         if (debugShowBoundingBoxes) {
-            if (player) {
-                Position playerPos = player->getPosition();
-                sf::RectangleShape playerBox(sf::Vector2f(32.0f, 32.0f));
-                playerBox.setPosition(sf::Vector2f(playerPos.x * 32.0f, playerPos.y * 32.0f));
-                playerBox.setFillColor(sf::Color::Transparent);
-                playerBox.setOutlineThickness(2.0f);
-                playerBox.setOutlineColor(sf::Color(0, 255, 0));  // Green for player
-                window.draw(playerBox);
-            }
+            auto drawBox = [&](float x, float y, sf::Color color) {
+                sf::RectangleShape box({TILE_SIZE, TILE_SIZE});
+                box.setPosition({x * TILE_SIZE, y * TILE_SIZE});
+                box.setFillColor(sf::Color::Transparent);
+                box.setOutlineThickness(2.f);
+                box.setOutlineColor(color);
+                window.draw(box);
+            };
             
+            if (player) drawBox(static_cast<float>(playerPos.x), static_cast<float>(playerPos.y), sf::Color::Green);
             if (enemyManager) {
-                const auto& enemies = enemyManager->getEnemies();
-                for (const auto& enemy : enemies) {
-                    sf::RectangleShape enemyBox(sf::Vector2f(32.0f, 32.0f));
-                    enemyBox.setPosition(sf::Vector2f(enemy.x * 32.0f, enemy.y * 32.0f));
-                    enemyBox.setFillColor(sf::Color::Transparent);
-                    enemyBox.setOutlineThickness(2.0f);
-                    enemyBox.setOutlineColor(sf::Color(255, 0, 0));  // Red for enemies
-                    window.draw(enemyBox);
+                for (const auto& e : enemyManager->getEnemies()) {
+                    drawBox(static_cast<float>(e.x), static_cast<float>(e.y), sf::Color::Red);
                 }
             }
-        }
-        
-        // CHANGE: 2025-11-14 - Debug rendering: Loot item bounds
-        if (debugShowBoundingBoxes) {
             for (const auto& loot : loots) {
-                sf::RectangleShape lootBox(sf::Vector2f(32.0f, 32.0f));
-                lootBox.setPosition(sf::Vector2f(loot.getX() * 32.0f, loot.getY() * 32.0f));
-                lootBox.setFillColor(sf::Color::Transparent);
-                lootBox.setOutlineThickness(2.0f);
-                lootBox.setOutlineColor(sf::Color(255, 255, 0));  // Yellow for loot
-                window.draw(lootBox);
+                drawBox(static_cast<float>(loot.getX()), static_cast<float>(loot.getY()), sf::Color::Yellow);
             }
         }
         
-        // Apply lighting with multi-light support
+        // Layer 5: Lighting
         if (renderer->isLightingEnabled()) {
             renderer->clearLights();
             
-            // 1. Add Player Torch
+            // Player torch
             if (player) {
-                Position pPos = player->getPosition();
-                Renderer::Light playerLight(
-                    sf::Vector2f(pPos.x * 32.0f + 16.0f, pPos.y * 32.0f + 16.0f),
-                    sf::Color(255, 200, 150),  // Warm orange torch light
-                    300.0f,                     // 300px radius
-                    1.0f                        // Full intensity
+                Renderer::Light torch(
+                    {playerPos.x * TILE_SIZE + TILE_SIZE / 2.f, playerPos.y * TILE_SIZE + TILE_SIZE / 2.f},
+                    sf::Color(255, 200, 150), 300.f, 1.f
                 );
-                playerLight.flickerSpeed = 5.0f;
-                playerLight.flickerRange = 0.1f;
-                renderer->addLight(playerLight);
+                torch.flickerSpeed = 5.f;
+                torch.flickerRange = 0.1f;
+                renderer->addLight(torch);
             }
             
-            // 2. Add Enemy Lights
+            // Enemy glow
             if (enemyManager) {
                 for (const auto& enemy : enemyManager->getEnemies()) {
-                    sf::Color glowColor = sf::Color(255, 50, 50);  // Default red
-                    float radius = 100.0f;
-                    float intensity = 0.6f;
+                    sf::Color color = sf::Color(255, 50, 50);
+                    float radius = 100.f, intensity = 0.6f;
                     
-                    if (enemy.type == "ranged") {
-                        glowColor = sf::Color(100, 50, 255);  // Purple for ranged
-                        radius = 120.0f;
-                    } else if (enemy.type == "boss") {
-                        glowColor = sf::Color(255, 100, 0);  // Orange/Fire for bosses
-                        radius = 180.0f;
-                        intensity = 0.8f;
-                    }
+                    if (enemy.type == "ranged") { color = sf::Color(100, 50, 255); radius = 120.f; }
+                    else if (enemy.type == "boss") { color = sf::Color(255, 100, 0); radius = 180.f; intensity = 0.8f; }
                     
-                    Renderer::Light enemyLight(
-                        sf::Vector2f(enemy.x * 32.0f + 16.0f, enemy.y * 32.0f + 16.0f),
-                        glowColor,
-                        radius,
-                        intensity
-                    );
-                    renderer->addLight(enemyLight);
+                    renderer->addLight(Renderer::Light(
+                        {enemy.x * TILE_SIZE + TILE_SIZE / 2.f, enemy.y * TILE_SIZE + TILE_SIZE / 2.f},
+                        color, radius, intensity
+                    ));
                 }
             }
             
-            // 3. Add Rare Loot Lights (rarity >= 3)
+            // Rare loot glow
             for (const auto& loot : loots) {
                 if (loot.getItem().rarity >= 3) {
-                    Renderer::Light lootLight(
-                        sf::Vector2f(loot.getX() * 32.0f + 16.0f, loot.getY() * 32.0f + 16.0f),
-                        loot.getItem().getRarityColor(),
-                        80.0f,
-                        0.5f
-                    );
-                    renderer->addLight(lootLight);
+                    renderer->addLight(Renderer::Light(
+                        {loot.getX() * TILE_SIZE + TILE_SIZE / 2.f, loot.getY() * TILE_SIZE + TILE_SIZE / 2.f},
+                        loot.getItem().getRarityColor(), 80.f, 0.5f
+                    ));
                 }
             }
             
-            // Update light animations using totalTime
             renderer->updateLights(totalTime);
-            
-            // Apply lighting shader
-            if (player) {
-                renderer->applyLighting(*player);
-            }
+            if (player) renderer->applyLighting(*player);
         }
         
-        // ✨ Render combat effects after entities but before UI
+        // Layer 6: Combat effects
         renderCombatEffects();
         
-        // Render enhanced UI with panels (HUD, minimap, etc.)
+        // Layer 7: UI
         if (uiManager && dungeon && player && enemyManager) {
             uiManager->renderUI(window, *player, *dungeon, *enemyManager, skillTree.get(), currentFloor);
-        }
-        
-        // TASK D & I: Show contextual prompt when near stairs
-        if (uiManager && dungeon && player && enemyManager) {
-            Position playerPos = player->getPosition();
+            
+            // Stairs prompt
             if (dungeon->isAdjacentToStairs(playerPos.x, playerPos.y)) {
-                if (enemyManager->isEmpty()) {
-                    uiManager->renderContextualPrompt(window, "Press E to descend to next floor");
-                } else {
-                    uiManager->renderContextualPrompt(window, "Defeat all enemies to unlock stairs!");
-                }
+                const char* msg = enemyManager->isEmpty() 
+                    ? "Press E to descend to next floor" 
+                    : "Defeat all enemies to unlock stairs!";
+                uiManager->renderContextualPrompt(window, msg);
             }
         }
         
-        // Render Game Over screen
+        // Game over overlay
         if (currentState == GameState::GameOver) {
             renderGameOverScreen();
         }
     }
     
-    // Render shop overlay (on top of everything)
+    // Shop overlay (top layer)
     if (shop && shop->isShopOpen()) {
         shop->render(window);
     }
@@ -1212,380 +849,206 @@ void Game::render() {
 }
 
 void Game::renderGameOverScreen() {
-    // Semi-transparent dark overlay
-    sf::RectangleShape overlay(sf::Vector2f(window.getSize().x, window.getSize().y));
+    const auto winSize = window.getSize();
+    const float centerX = winSize.x / 2.f;
+    const float centerY = winSize.y / 2.f;
+    
+    // Dark overlay
+    sf::RectangleShape overlay({static_cast<float>(winSize.x), static_cast<float>(winSize.y)});
     overlay.setFillColor(sf::Color(0, 0, 0, 180));
     window.draw(overlay);
     
-    // Use simple rectangle panel instead of texture
-    sf::RectangleShape panel(sf::Vector2f(400.f, 300.f));
-    float panelX = window.getSize().x / 2.0f - 200.0f;
-    float panelY = window.getSize().y / 2.0f - 150.0f;
-    panel.setPosition(sf::Vector2f(panelX, panelY));
+    // Panel
+    constexpr float panelW = 400.f, panelH = 300.f;
+    sf::RectangleShape panel({panelW, panelH});
+    panel.setPosition({centerX - panelW / 2.f, centerY - panelH / 2.f});
     panel.setFillColor(sf::Color(80, 60, 50, 220));
     panel.setOutlineColor(sf::Color(120, 90, 70));
     panel.setOutlineThickness(5.f);
     window.draw(panel);
     
-    // Load font for text
-    sf::Font font;
-    if (font.openFromFile("C:/Windows/Fonts/arial.ttf")) {
-        // "GAME OVER" title
-        sf::Text gameOverText(font);
-        gameOverText.setString("GAME OVER");
-        gameOverText.setCharacterSize(60);
-        gameOverText.setFillColor(sf::Color(200, 50, 50));
-        gameOverText.setOutlineThickness(3.0f);
-        gameOverText.setOutlineColor(sf::Color::Black);
-        gameOverText.setPosition(sf::Vector2f(
-            window.getSize().x / 2.0f - 180.0f,
-            window.getSize().y / 2.0f - 100.0f
-        ));
-        window.draw(gameOverText);
-        
-        // Stats text
-        if (player) {
-            std::string statsText = "Final Level: " + std::to_string(player->getLevel()) + 
-                                   "\nTotal XP: " + std::to_string(player->getExperience()) +
-                                   "\nEnemies Defeated: " + std::to_string(player->getExperience() / 25);
-            
-            sf::Text stats(font);
-            stats.setString(statsText);
-            stats.setCharacterSize(24);
-            stats.setFillColor(sf::Color(220, 220, 220));
-            stats.setOutlineThickness(1.0f);
-            stats.setOutlineColor(sf::Color::Black);
-            stats.setPosition(sf::Vector2f(
-                window.getSize().x / 2.0f - 100.0f,
-                window.getSize().y / 2.0f - 10.0f
-            ));
-            window.draw(stats);
-        }
-        
-        // Instructions
-        sf::Text instructions(font);
-        instructions.setString("Press ESC to exit");
-        instructions.setCharacterSize(20);
-        instructions.setFillColor(sf::Color(150, 150, 150));
-        instructions.setOutlineThickness(1.0f);
-        instructions.setOutlineColor(sf::Color::Black);
-        instructions.setPosition(sf::Vector2f(
-            window.getSize().x / 2.0f - 100.0f,
-            window.getSize().y / 2.0f + 120.0f
-        ));
-        window.draw(instructions);
+    // Use UIManager font if available
+    if (!uiManager || !uiManager->isFontLoaded()) return;
+    const auto& font = uiManager->getFont();
+    
+    // Title
+    sf::Text title(font, "GAME OVER", 60);
+    title.setFillColor(sf::Color(200, 50, 50));
+    title.setOutlineThickness(3.f);
+    title.setOutlineColor(sf::Color::Black);
+    sf::FloatRect titleBounds = title.getLocalBounds();
+    title.setPosition({centerX - titleBounds.size.x / 2.f, centerY - 100.f});
+    window.draw(title);
+    
+    // Stats
+    if (player) {
+        std::string stats = "Level: " + std::to_string(player->getLevel()) + 
+                           "  |  XP: " + std::to_string(player->getExperience()) +
+                           "  |  Floor: " + std::to_string(currentFloor);
+        sf::Text statsText(font, stats, 22);
+        statsText.setFillColor(sf::Color(220, 220, 220));
+        sf::FloatRect statsBounds = statsText.getLocalBounds();
+        statsText.setPosition({centerX - statsBounds.size.x / 2.f, centerY});
+        window.draw(statsText);
     }
+    
+    // Instructions
+    sf::Text hint(font, "Press ESC to exit  |  R to restart", 18);
+    hint.setFillColor(sf::Color(150, 150, 150));
+    sf::FloatRect hintBounds = hint.getLocalBounds();
+    hint.setPosition({centerX - hintBounds.size.x / 2.f, centerY + 100.f});
+    window.draw(hint);
 }
 
 void Game::setState(GameState state) {
     currentState = state;
-    std::cout << "[Game] State changed to: " << static_cast<int>(state) << std::endl;
-    
-    if (state == GameState::Playing) {
+    if (state == GameState::Playing && uiManager) {
         uiManager->showHUD();
     }
 }
 
 void Game::checkExitAccess() {
-    // Check if all enemies on current floor are defeated
-    if (enemyManager->isEmpty()) {
-        // Find a good position for exit stairs (center of last room)
-        auto rooms = dungeon->getRooms();
-        if (!rooms.empty()) {
-            const auto& lastRoom = rooms.back();
-            // CHANGE: 2025-11-14 - Add bounds checking for exit stairs placement
-            exitStairsPosition.x = lastRoom.x + lastRoom.width / 2;
-            exitStairsPosition.y = lastRoom.y + lastRoom.height / 2;
-            
-            // Clamp to dungeon bounds
-            int maxX = dungeon->getWidth() - 1;
-            int maxY = dungeon->getHeight() - 1;
-            exitStairsPosition.x = std::max(0, std::min(exitStairsPosition.x, maxX));
-            exitStairsPosition.y = std::max(0, std::min(exitStairsPosition.y, maxY));
-            
-            // Place exit tile in dungeon
-            dungeon->setTile(exitStairsPosition.x, exitStairsPosition.y, TileType::Exit);
-            
-            uiManager->addFloatingText("Exit Unlocked!", exitStairsPosition.x * 32.0f, exitStairsPosition.y * 32.0f, sf::Color(255, 215, 0));
-            std::cout << "[Floor] Exit stairs spawned at (" << exitStairsPosition.x << ", " << exitStairsPosition.y << ")" << std::endl;
-        }
-    }
+    if (!enemyManager || !enemyManager->isEmpty() || !dungeon || !uiManager) return;
+    
+    const auto& rooms = dungeon->getRooms();
+    if (rooms.empty()) return;
+    
+    // Place exit at center of last room
+    const auto& lastRoom = rooms.back();
+    exitStairsPosition.x = std::clamp(lastRoom.x + lastRoom.width / 2, 0, dungeon->getWidth() - 1);
+    exitStairsPosition.y = std::clamp(lastRoom.y + lastRoom.height / 2, 0, dungeon->getHeight() - 1);
+    
+    dungeon->setTile(exitStairsPosition.x, exitStairsPosition.y, TileType::Exit);
+    uiManager->addFloatingText("Exit Unlocked!", exitStairsPosition.x * TILE_SIZE, exitStairsPosition.y * TILE_SIZE, sf::Color(255, 215, 0));
 }
 
 void Game::spawnEnemiesForFloor(int floor) {
-    // Calculate scaling factor based on floor number
-    float scale = 1.0f + (floor - 1) * 0.2f;
+    if (!enemyManager || !dungeon || !player) return;
     
-    std::cout << "[Floor] Spawning enemies for floor " << floor << " (scale: " << scale << "x)" << std::endl;
+    const auto& rooms = dungeon->getRooms();
+    if (rooms.size() < 2) return;
     
-    auto rooms = dungeon->getRooms();
-    if (rooms.size() < 4) return;
+    const float scale = 1.f + (floor - 1) * 0.25f;
+    const Position playerPos = player->getPosition();
     
-    // Helper lambda to check if position is safe distance from player
-    auto isSafeDistance = [&](int x, int y) -> bool {
-        if (!player) return true;
-        Position playerPos = player->getPosition();
-        float distance = std::abs(x - playerPos.x) + std::abs(y - playerPos.y);  // Manhattan distance
-        return distance >= 3.0f;  // Minimum 3 tiles away
-    };
+    // Enemy definitions by floor tier
+    struct EnemyDef { const char* name; const char* type; int hp; int dmg; int range; };
+    static const EnemyDef tier1[] = {{"Goblin", "melee", 50, 10, 1}, {"Orc", "melee", 80, 15, 1}, {"Skeleton", "ranged", 60, 12, 2}};
+    static const EnemyDef tier2[] = {{"Wraith", "ranged", 100, 20, 2}, {"Dark Mage", "ranged", 90, 25, 3}, {"Gargoyle", "melee", 120, 18, 1}};
+    static const EnemyDef tier3[] = {{"Vampire", "melee", 150, 30, 1}, {"Lich", "boss", 200, 40, 3}, {"Dragon", "boss", 300, 50, 2}};
     
-    // Helper lambda to find safe spawn position in room
-    auto findSafeSpawnPos = [&](const Room& room) -> std::pair<int, int> {
-        // Try center positions first
-        std::vector<std::pair<int, int>> candidates = {
-            {room.x + room.width / 2, room.y + room.height / 2},
-            {room.x + 1, room.y + 1},
-            {room.x + room.width - 2, room.y + 1},
-            {room.x + 1, room.y + room.height - 2},
-            {room.x + room.width - 2, room.y + room.height - 2}
-        };
+    const EnemyDef* enemies = (floor <= 3) ? tier1 : (floor <= 6) ? tier2 : tier3;
+    constexpr int enemyCount = 3;
+    
+    int spawned = 0;
+    for (size_t i = 1; i < rooms.size() && spawned < enemyCount; i++) {
+        const auto& room = rooms[i];
+        int cx = room.x + room.width / 2;
+        int cy = room.y + room.height / 2;
         
-        for (const auto& pos : candidates) {
-            if (isSafeDistance(pos.first, pos.second)) {
-                return pos;
-            }
+        // Ensure min 3 tiles from player
+        if (std::abs(cx - playerPos.x) + std::abs(cy - playerPos.y) < 3) {
+            cx = room.x + 1;
+            cy = room.y + 1;
         }
         
-        // Fallback to room center if no safe position found
-        return {room.x + room.width / 2, room.y + room.height / 2};
-    };
-    
-    // Floors 1-2: Basic enemies (Goblins, Orcs, Skeletons)
-    if (floor <= 2) {
-        auto pos1 = findSafeSpawnPos(rooms[1]);
-        enemyManager->spawnEnemy("Goblin Scout", "melee", pos1.first, pos1.second, 
-                                  static_cast<int>(50 * scale), static_cast<int>(10 * scale), 1, 1.5f);
-        
-        auto pos2 = findSafeSpawnPos(rooms[2]);
-        enemyManager->spawnEnemy("Orc Grunt", "melee", pos2.first, pos2.second, 
-                                  static_cast<int>(80 * scale), static_cast<int>(15 * scale), 1, 1.2f);
-        
-        auto pos3 = findSafeSpawnPos(rooms[3]);
-        enemyManager->spawnEnemy("Skeleton Mage", "ranged", pos3.first, pos3.second, 
-                                  static_cast<int>(60 * scale), static_cast<int>(18 * scale), 3, 2.0f);
-        
-        if (rooms.size() >= 5) {
-            auto pos4 = findSafeSpawnPos(rooms.back());
-            enemyManager->spawnEnemy("Shadow Knight", "boss", pos4.first, pos4.second, 
-                                      static_cast<int>(150 * scale), static_cast<int>(25 * scale), 1, 1.0f);
-        }
+        const auto& e = enemies[spawned];
+        enemyManager->spawnEnemy(e.name, e.type, cx, cy, 
+            static_cast<int>(e.hp * scale), static_cast<int>(e.dmg * scale), e.range, 1.f, floor);
+        spawned++;
     }
-    // Floors 3-4: Intermediate enemies (Wraiths, Dark Mages, Gargoyles)
-    else if (floor <= 4) {
-        auto pos1 = findSafeSpawnPos(rooms[1]);
-        enemyManager->spawnEnemy("Wraith", "ranged", pos1.first, pos1.second, 
-                                  static_cast<int>(90 * scale), static_cast<int>(22 * scale), 2, 1.8f);
-        
-        auto pos2 = findSafeSpawnPos(rooms[2]);
-        enemyManager->spawnEnemy("Dark Mage", "ranged", pos2.first, pos2.second, 
-                                  static_cast<int>(100 * scale), static_cast<int>(28 * scale), 3, 2.5f);
-        
-        auto pos3 = findSafeSpawnPos(rooms[3]);
-        enemyManager->spawnEnemy("Gargoyle", "melee", pos3.first, pos3.second, 
-                                  static_cast<int>(120 * scale), static_cast<int>(20 * scale), 1, 1.0f);
-        
-        if (rooms.size() >= 5) {
-            auto pos4 = findSafeSpawnPos(rooms.back());
-            enemyManager->spawnEnemy("Necromancer", "boss", pos4.first, pos4.second, 
-                                      static_cast<int>(180 * scale), static_cast<int>(32 * scale), 3, 2.0f);
-        }
-    }
-    // Floors 5-7: Advanced enemies (Vampires, Liches, Minotaurs)
-    else if (floor <= 7) {
-        auto pos1 = findSafeSpawnPos(rooms[1]);
-        enemyManager->spawnEnemy("Vampire Lord", "melee", pos1.first, pos1.second, 
-                                  static_cast<int>(140 * scale), static_cast<int>(35 * scale), 1, 1.5f);
-        
-        auto pos2 = findSafeSpawnPos(rooms[2]);
-        enemyManager->spawnEnemy("Lich", "ranged", pos2.first, pos2.second, 
-                                  static_cast<int>(160 * scale), static_cast<int>(40 * scale), 3, 2.8f);
-        
-        auto pos3 = findSafeSpawnPos(rooms[3]);
-        enemyManager->spawnEnemy("Minotaur", "melee", pos3.first, pos3.second, 
-                                  static_cast<int>(200 * scale), static_cast<int>(45 * scale), 1, 1.2f);
-        
-        if (rooms.size() >= 5) {
-            auto pos4 = findSafeSpawnPos(rooms.back());
-            enemyManager->spawnEnemy("Shadow Knight", "boss", pos4.first, pos4.second, 
-                                      static_cast<int>(250 * scale), static_cast<int>(50 * scale), 1, 1.0f);
-        }
-    }
-    // Floors 8+: Legendary enemies (Dragons and elite bosses)
-    else {
-        auto pos1 = findSafeSpawnPos(rooms[1]);
-        enemyManager->spawnEnemy("Dragon", "boss", pos1.first, pos1.second, 
-                                  static_cast<int>(300 * scale), static_cast<int>(60 * scale), 2, 2.0f);
-        
-        auto pos2 = findSafeSpawnPos(rooms[2]);
-        enemyManager->spawnEnemy("Ancient Lich", "boss", pos2.first, pos2.second, 
-                                  static_cast<int>(250 * scale), static_cast<int>(55 * scale), 3, 3.0f);
-        
-        auto pos3 = findSafeSpawnPos(rooms[3]);
-        enemyManager->spawnEnemy("War Minotaur", "boss", pos3.first, pos3.second, 
-                                  static_cast<int>(280 * scale), static_cast<int>(65 * scale), 1, 1.0f);
-        
-        if (rooms.size() >= 5) {
-            auto pos4 = findSafeSpawnPos(rooms.back());
-            enemyManager->spawnEnemy("Elder Dragon", "boss", pos4.first, pos4.second, 
-                                      static_cast<int>(400 * scale), static_cast<int>(75 * scale), 2, 2.5f);
-        }
-    }
-    
-    std::cout << "[Floor] Spawned " << (rooms.size() >= 5 ? 4 : 3) << " enemies with " << scale << "x stats (min 3 tile distance)" << std::endl;
 }
 
 void Game::nextFloor() {
-    // CHANGE: 2025-11-14 - Clean up loot and effects from previous floor
-    loots.clear();  // Remove all unpicked loot
-    activeEffects.clear();  // Remove all active visual effects
+    if (!player || !dungeon || !enemyManager || !levelManager || !uiManager) return;
     
+    loots.clear();
+    activeEffects.clear();
     currentFloor++;
     
-    // Check for victory condition
+    // Victory condition
     if (currentFloor > 10) {
-        std::cout << "\n========================================" << std::endl;
-        std::cout << "  🎉 VICTORY! ALL 10 FLOORS CLEARED! 🎉" << std::endl;
-        std::cout << "========================================\n" << std::endl;
-        uiManager->addFloatingText("VICTORY! Dungeon Conquered!", 
-                                    player->getPosition().x * 32.0f, player->getPosition().y * 32.0f, 
-                                    sf::Color(255, 215, 0));
+        Position pos = player->getPosition();
+        uiManager->addFloatingText("VICTORY!", pos.x * TILE_SIZE, pos.y * TILE_SIZE, sf::Color(255, 215, 0));
         currentState = GameState::Victory;
         return;
     }
     
-    // Advance floor using level manager
     levelManager->advanceFloor();
     
-    std::cout << "\n[Floor] " << levelManager->getFloorDisplayText(currentFloor) << std::endl;
-    
-    // Check for boss floor
+    // Boss floor warning
     if (levelManager->isBossFloor(currentFloor)) {
-        std::cout << "⚔️  WARNING: BOSS ENCOUNTER - " << levelManager->getBossName(currentFloor) << " ⚔️" << std::endl;
-        uiManager->addFloatingText("⚔️ BOSS FLOOR ⚔️", 
-                                    player->getPosition().x * 32.0f, player->getPosition().y * 32.0f - 50.0f, 
-                                    sf::Color(255, 0, 0));
+        Position pos = player->getPosition();
+        uiManager->addFloatingText("BOSS FLOOR!", pos.x * TILE_SIZE, pos.y * TILE_SIZE - 50.f, sf::Color::Red);
     }
     
-    // Check for skill unlock
-    if (levelManager->shouldUnlockSkill(currentFloor)) {
-        std::string skillName = levelManager->getUnlockedSkillName(currentFloor);
-        std::cout << "✨ NEW SKILL UNLOCKED: " << skillName << " ✨" << std::endl;
-        uiManager->addFloatingText("New Skill: " + skillName, 
-                                    player->getPosition().x * 32.0f, player->getPosition().y * 32.0f - 70.0f, 
-                                    sf::Color(0, 255, 255));
-    }
-    
-    std::cout << levelManager->getFloorDescription(currentFloor) << "\n" << std::endl;
-    
-    uiManager->addFloatingText(levelManager->getFloorDisplayText(currentFloor), 
-                                player->getPosition().x * 32.0f, player->getPosition().y * 32.0f, 
-                                sf::Color(255, 255, 255));
-    
-    // Generate new level using level manager
     levelManager->generateLevel(currentFloor, *dungeon, *enemyManager, *player);
     
-    // Reset player to start position
-    auto rooms = dungeon->getRooms();
+    // Place player in first room
+    const auto& rooms = dungeon->getRooms();
     if (!rooms.empty()) {
         player->moveTo({rooms[0].x + 1, rooms[0].y + 1});
     }
     
-    // Reset exit position (will be set when all enemies defeated)
     exitStairsPosition = {0, 0};
-    
-    std::cout << "[Floor] Floor " << currentFloor << " ready!" << std::endl;
+    Position pos = player->getPosition();
+    uiManager->addFloatingText("Floor " + std::to_string(currentFloor), pos.x * TILE_SIZE, pos.y * TILE_SIZE, sf::Color::White);
 }
 
 void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
-    // CHANGE: 2025-12-05 - Refactored to use ItemManager.getItemById() for proper item icons
-    // Random chance for item drop (50% for regular enemies, 100% for bosses)
-    int dropChance = rand() % 100;
-    bool isBoss = (enemyName.find("Dragon") != std::string::npos || 
-                   enemyName.find("Knight") != std::string::npos ||
-                   enemyName.find("Lich") != std::string::npos ||
-                   enemyName.find("Necromancer") != std::string::npos);
+    if (!uiManager) return;
     
-    if (dropChance < 50 || isBoss) {
-        ItemNew droppedItem;
-        
-        // Floor-based loot table using ItemManager for proper icons
-        // Get items from database instead of creating inline
-        auto& itemMgr = ItemManager::getInstance();
-        int itemRoll = rand() % 100;
-        
-        if (currentFloor <= 2) {
-            // Early floors: Basic items
-            if (itemRoll < 40) {
-                droppedItem = itemMgr.getItemById("potion");
-            } else if (itemRoll < 60) {
-                droppedItem = itemMgr.getItemById("gem_ruby");  // Use gem_ruby for gold drops
-            } else if (itemRoll < 80) {
-                droppedItem = itemMgr.getItemById("sword_iron");
-            } else {
-                droppedItem = itemMgr.getItemById("shield");  // Fixed: shield not shield_wood
-            }
-        } else if (currentFloor <= 4) {
-            // Mid floors: Better items
-            if (itemRoll < 30) {
-                droppedItem = itemMgr.getItemById("potion_mega");
-            } else if (itemRoll < 50) {
-                droppedItem = itemMgr.getItemById("potion_strength");
-            } else if (itemRoll < 70) {
-                droppedItem = itemMgr.getItemById("sword_flame");
-            } else if (itemRoll < 85) {
-                droppedItem = itemMgr.getItemById("cloak");  // Fixed: use cloak instead of shield_iron
-            } else {
-                droppedItem = itemMgr.getItemById("frost_bomb");
-            }
-        } else if (currentFloor <= 7) {
-            // Deep floors: Advanced items
-            if (itemRoll < 25) {
-                droppedItem = itemMgr.getItemById("elixir");
-            } else if (itemRoll < 45) {
-                droppedItem = itemMgr.getItemById("fire_scroll");
-            } else if (itemRoll < 65) {
-                droppedItem = itemMgr.getItemById("holy_water");
-            } else if (itemRoll < 80) {
-                droppedItem = itemMgr.getItemById("amulet_wisdom");
-            } else {
-                droppedItem = itemMgr.getItemById("lightning_rod");
-            }
-        } else {
-            // Legendary floors: Epic loot
-            if (itemRoll < 20) {
-                droppedItem = itemMgr.getItemById("elixir");  // Fixed: use elixir instead of revive_scroll
-            } else if (itemRoll < 40) {
-                droppedItem = itemMgr.getItemById("sword_legendary");
-            } else if (itemRoll < 60) {
-                droppedItem = itemMgr.getItemById("armor_dragon");
-            } else if (itemRoll < 80) {
-                droppedItem = itemMgr.getItemById("amulet_health");
-            } else {
-                droppedItem = itemMgr.getItemById("gem_ruby");
-            }
+    // Boss detection
+    static const char* bossNames[] = {"Dragon", "Knight", "Lich", "Necromancer", "Boss"};
+    bool isBoss = std::any_of(std::begin(bossNames), std::end(bossNames), 
+        [&](const char* name) { return enemyName.find(name) != std::string::npos; });
+    
+    // Drop chance: 100% for bosses, 50% for regular
+    if (!isBoss && (rand() % 100) >= 50) return;
+    
+    // Floor-based loot tables
+    struct LootEntry { const char* id; int weight; };
+    static const LootEntry loot1[] = {{"potion", 40}, {"gem_ruby", 60}, {"sword_iron", 80}, {"shield", 100}};
+    static const LootEntry loot2[] = {{"potion_mega", 30}, {"potion_strength", 50}, {"sword_flame", 70}, {"cloak", 85}, {"frost_bomb", 100}};
+    static const LootEntry loot3[] = {{"elixir", 25}, {"fire_scroll", 45}, {"holy_water", 65}, {"amulet_wisdom", 80}, {"lightning_rod", 100}};
+    static const LootEntry loot4[] = {{"elixir", 20}, {"sword_legendary", 40}, {"armor_dragon", 60}, {"amulet_health", 80}, {"gem_ruby", 100}};
+    
+    const LootEntry* table = (currentFloor <= 2) ? loot1 : (currentFloor <= 4) ? loot2 : (currentFloor <= 7) ? loot3 : loot4;
+    constexpr int tableSize = 4;
+    
+    // Roll for item
+    auto& itemMgr = ItemManager::getInstance();
+    int roll = rand() % 100;
+    ItemNew item;
+    
+    for (int i = 0; i < tableSize; ++i) {
+        if (roll < table[i].weight) {
+            item = itemMgr.getItemById(table[i].id);
+            break;
         }
-        
-        // Fallback to potion if item not found in database
-        if (droppedItem.id.empty()) {
-            droppedItem = itemMgr.getItemById("potion");
-            if (droppedItem.id.empty()) {
-                // Last resort: create inline potion with icon path
-                droppedItem = ItemNew("potion", "Health Potion", "consumable", 1, 50,
-                    ItemAction("heal", {{{"amount", 50}}}),
-                    "assets/kenney/tiles_packed.png");
-            }
-        }
-        
-        // Spawn loot on ground
-        spawnLootAt(sf::Vector2i(x, y), droppedItem);
-        
-        // Show floating text
-        uiManager->addFloatingText("+ " + droppedItem.name, 
-            x * 32.0f, y * 32.0f - 20.0f, sf::Color(255, 215, 0));
-        
-        std::cout << "[Loot] " << droppedItem.name << " (" << droppedItem.getRarityName() 
-                  << ") dropped by " << enemyName << " - Icon: " << droppedItem.iconPath << std::endl;
     }
+    
+    // Fallback
+    if (item.id.empty()) {
+        item = itemMgr.getItemById("potion");
+        if (item.id.empty()) {
+            item = ItemNew("potion", "Health Potion", "consumable", 1, 50,
+                ItemAction("heal", {{{"amount", 50}}}), "assets/kenney/tiles_packed.png");
+        }
+    }
+    
+    // Stack for consumables
+    if (item.type == "consumable") {
+        item.stackCount = 1 + (rand() % 3);
+    }
+    
+    spawnLootAt(sf::Vector2i(x, y), item);
+    
+    // Floating text
+    std::string text = (item.stackCount > 1) 
+        ? "+ " + item.name + " x" + std::to_string(item.stackCount)
+        : "+ " + item.name;
+    uiManager->addFloatingText(text, x * TILE_SIZE, y * TILE_SIZE - 20.f, item.getRarityColor());
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1593,97 +1056,84 @@ void Game::dropItemFromEnemy(const std::string& enemyName, int x, int y) {
 // ═══════════════════════════════════════════════════════════════════════
 
 void Game::addCombatEffect(const std::string& effectType, float x, float y, float duration) {
-    activeEffects.push_back(CombatEffect(effectType, x, y, duration));
-    std::cout << "[Effects] Added " << effectType << " effect at (" << x << ", " << y << ")" << std::endl;
+    activeEffects.emplace_back(effectType, x, y, duration);
 }
 
 void Game::updateCombatEffects(float deltaTime) {
-    // Update all active effects and remove expired ones
-    for (auto it = activeEffects.begin(); it != activeEffects.end(); ) {
-        it->lifetime -= deltaTime;
-        
-        if (it->lifetime <= 0.0f) {
-            it = activeEffects.erase(it);  // Remove expired effect
-        } else {
-            ++it;
-        }
-    }
+    // Efficient removal of expired effects using erase-remove idiom
+    activeEffects.erase(
+        std::remove_if(activeEffects.begin(), activeEffects.end(),
+            [deltaTime](CombatEffect& effect) {
+                effect.lifetime -= deltaTime;
+                return effect.lifetime <= 0.f;
+            }),
+        activeEffects.end()
+    );
 }
 
 void Game::renderCombatEffects() {
-    if (!renderer) return;
+    if (activeEffects.empty()) return;
     
-    // Effect type to texture key mapping
+    // Static texture mapping (loaded once)
     static const std::unordered_map<std::string, std::string> effectTextures = {
-        {"swing", "effect_attack_swing"}, {"large_swing", "effect_attack_large"},
-        {"explosion", "effect_explosion"}, {"fire_explosion", "effect_fire_explosion"},
-        {"magic_explosion", "effect_magic_explosion"}, {"arrow", "effect_arrow"},
-        {"acid", "effect_acid"}, {"ghost_orb", "effect_ghost_orb"}
+        {"swing", "effect_attack_swing"},
+        {"large_swing", "effect_attack_large"},
+        {"explosion", "effect_explosion"},
+        {"fire_explosion", "effect_fire_explosion"},
+        {"magic_explosion", "effect_magic_explosion"},
+        {"arrow", "effect_arrow"},
+        {"acid", "effect_acid"},
+        {"ghost_orb", "effect_ghost_orb"},
+        {"heal", "effect_heal"}
     };
     
+    auto& assets = AssetManager::getInstance();
+    
     for (const auto& effect : activeEffects) {
-        auto it = effectTextures.find(effect.effectType);
+        const auto it = effectTextures.find(effect.effectType);
         if (it == effectTextures.end()) continue;
         
-        sf::Texture* texture = AssetManager::getInstance().getTexture(it->second);
+        sf::Texture* texture = assets.getTexture(it->second);
         if (!texture) continue;
         
-        sf::Sprite effectSprite(*texture);
-        effectSprite.setPosition(sf::Vector2f(effect.x, effect.y));
+        // Create sprite with fade based on lifetime
+        sf::Sprite sprite(*texture);
+        sprite.setPosition({effect.x, effect.y});
         
-        float alpha = (effect.lifetime / effect.maxLifetime) * 255.0f;
-        effectSprite.setColor(sf::Color(255, 255, 255, static_cast<unsigned char>(alpha)));
+        const float lifetimeRatio = effect.lifetime / effect.maxLifetime;
+        const uint8_t alpha = static_cast<uint8_t>(lifetimeRatio * 255.f);
+        sprite.setColor(sf::Color(255, 255, 255, alpha));
         
-        float scale = 32.0f / texture->getSize().x;
-        effectSprite.setScale(sf::Vector2f(scale, scale));
-        window.draw(effectSprite);
+        // Scale to uniform TILE_SIZE with slight expansion on spawn
+        const float baseScale = TILE_SIZE / static_cast<float>(texture->getSize().x);
+        const float dynamicScale = baseScale * (1.f + (1.f - lifetimeRatio) * 0.2f);
+        sprite.setScale({dynamicScale, dynamicScale});
+        
+        window.draw(sprite);
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// CHANGE: 2025-11-14 - Deprecated: Door opening logic now integrated into E key handler
-// These functions are preserved for reference but no longer called separately
+// LOOT SPAWNING AND MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════
 
-void Game::tryOpenDoor() {
-    // DEPRECATED: Now integrated into handleInput E key handler with priority system
-    // Door opening is handled in the E key case with proper priority:
-    // 1. Pick up loot if nearby
-    // 2. Open door if adjacent and not already open
-    // 3. Descend stairs if adjacent
-    std::cout << "[Deprecated] tryOpenDoor() - use E key handler instead" << std::endl;
-}
-
-void Game::checkRoomClearDoors() {
-    // DEPRECATED: Now integrated into moveEnemiesWithBFS() when enemies are cleared
-    // When all enemies are defeated, auto-opening doors are opened automatically
-    std::cout << "[Deprecated] checkRoomClearDoors() - handled in moveEnemiesWithBFS()" << std::endl;
-}
+static constexpr int MAX_LOOTS = 100;
 
 void Game::spawnLootAt(const sf::Vector2i& tilePos, const ItemNew& item) {
-    // CHANGE: 2025-11-14 - Implement max loot limit to prevent accumulation
-    static const int MAX_LOOTS = 100;  // Maximum items on ground at once
-    
+    // Enforce maximum loot limit (FIFO eviction)
     if (loots.size() >= MAX_LOOTS) {
-        // Remove oldest loot to make room (FIFO cleanup)
-        std::cout << "[Loot] Max loot limit reached (" << MAX_LOOTS << "), removing oldest" << std::endl;
         loots.erase(loots.begin());
     }
     
-    Loot loot(item, tilePos);
-    loots.push_back(loot);
+    loots.emplace_back(item, tilePos);
     
-    std::cout << "[Loot] Spawned " << item.name << " (" << item.getRarityName() 
-              << ") at (" << tilePos.x << ", " << tilePos.y << ") [" << loots.size() << "/" << MAX_LOOTS << "]" << std::endl;
-    
-    // CHANGE: 2025-11-14 - Track rare/valuable loot using Heap for priority highlighting
-    // Items with rarity >= 3 or value >= 100 are added to premium loot tracker
+    // Visual highlight for rare/valuable items
     if (item.rarity >= 3 || item.value >= 100) {
-        std::string priority = "[Heap] Premium loot: " + item.name + " (rarity: " + std::to_string(item.rarity) 
-                             + ", value: " + std::to_string(item.value) + ")";
-        std::cout << priority << " - HIGHLIGHT CANDIDATE" << std::endl;
-        // Heap-based tracking: Higher rarity and value items are prioritized for visual prominence
-        // This allows the UI to prioritize showing pop-ups and highlights for the most valuable drops
+        if (uiManager) {
+            uiManager->addFloatingText(item.name + "!", 
+                tilePos.x * TILE_SIZE, tilePos.y * TILE_SIZE, 
+                sf::Color(255, 215, 0));  // Gold text for premium loot
+        }
     }
 }
 
@@ -1698,39 +1148,42 @@ void Game::updateLoots(float deltaTime) {
 // ═══════════════════════════════════════════════════════════════════════
 
 void Game::applyScreenShake(float intensity, float duration) {
-    screenShakeIntensity = intensity;
-    screenShakeTimer = duration;
+    // Stack with existing shake if stronger
+    screenShakeIntensity = std::max(screenShakeIntensity, intensity);
+    screenShakeTimer = std::max(screenShakeTimer, duration);
 }
 
 void Game::updateScreenShake(float deltaTime) {
-    if (screenShakeTimer > 0) {
-        screenShakeTimer -= deltaTime;
-        screenShakeIntensity *= (1.f - SCREEN_SHAKE_DECAY * deltaTime);
-        if (screenShakeTimer <= 0) {
-            screenShakeIntensity = 0.f;
-        }
+    if (screenShakeTimer <= 0.f) return;
+    
+    screenShakeTimer -= deltaTime;
+    screenShakeIntensity *= (1.f - SCREEN_SHAKE_DECAY * deltaTime);
+    
+    if (screenShakeTimer <= 0.f) {
+        screenShakeIntensity = 0.f;
+        screenShakeTimer = 0.f;
     }
 }
 
 void Game::updateCamera(float deltaTime) {
     if (!player) return;
     
-    // Calculate camera target based on player position
-    Position playerPos = player->getPosition();
+    // Camera target: center on player
+    const Position playerPos = player->getPosition();
     cameraTarget.x = playerPos.x * TILE_SIZE - WINDOW_WIDTH / 2.f + TILE_SIZE / 2.f;
     cameraTarget.y = playerPos.y * TILE_SIZE - WINDOW_HEIGHT / 2.f + TILE_SIZE / 2.f;
     
-    // Smooth lerp to target
-    float lerpFactor = 1.f - std::exp(-CAMERA_LERP_SPEED * deltaTime);
+    // Exponential smoothing (frame-rate independent)
+    const float lerpFactor = 1.f - std::exp(-CAMERA_LERP_SPEED * deltaTime);
     cameraOffset.x += (cameraTarget.x - cameraOffset.x) * lerpFactor;
     cameraOffset.y += (cameraTarget.y - cameraOffset.y) * lerpFactor;
     
-    // Apply screen shake
-    if (screenShakeTimer > 0) {
-        float shakeX = (static_cast<float>(std::rand() % 100) / 50.f - 1.f) * screenShakeIntensity;
-        float shakeY = (static_cast<float>(std::rand() % 100) / 50.f - 1.f) * screenShakeIntensity;
-        cameraOffset.x += shakeX;
-        cameraOffset.y += shakeY;
+    // Screen shake offset (random direction)
+    if (screenShakeIntensity > 0.1f) {
+        const float randX = (std::rand() % 200 - 100) / 100.f;  // -1.0 to 1.0
+        const float randY = (std::rand() % 200 - 100) / 100.f;
+        cameraOffset.x += randX * screenShakeIntensity;
+        cameraOffset.y += randY * screenShakeIntensity;
     }
 }
 
@@ -1738,26 +1191,23 @@ void Game::incrementCombo() {
     comboCounter++;
     comboTimer = COMBO_TIMEOUT;
     
-    // Apply combo damage bonus
-    float comboBonus = 1.f + (comboCounter * COMBO_DAMAGE_MULT);
-    std::cout << "[Combo] x" << comboCounter << " (damage +" << static_cast<int>((comboBonus - 1.f) * 100) << "%)" << std::endl;
+    // Notify UI of combo update
+    if (uiManager) {
+        uiManager->setCombo(comboCounter);
+    }
     
-    // Screen shake on high combos
+    // Screen shake scales with combo (threshold: 5+)
     if (comboCounter >= 5) {
-        applyScreenShake(3.f + comboCounter * 0.5f, 0.15f);
+        applyScreenShake(2.f + comboCounter * 0.4f, 0.12f);
     }
 }
 
 void Game::resetCombo() {
-    if (comboCounter > 0) {
-        std::cout << "[Combo] Reset (was x" << comboCounter << ")" << std::endl;
-    }
     comboCounter = 0;
     comboTimer = 0.f;
 }
 
 void Game::setTargetFPS(float fps) {
-    targetFPS = std::max(static_cast<float>(FRAMERATE_MIN), std::min(fps, static_cast<float>(FRAMERATE_MAX)));
+    targetFPS = std::clamp(fps, static_cast<float>(FRAMERATE_MIN), static_cast<float>(FRAMERATE_MAX));
     window.setFramerateLimit(static_cast<unsigned int>(targetFPS));
-    std::cout << "[FPS] Target set to " << targetFPS << std::endl;
 }

@@ -1,16 +1,19 @@
-// SaveSystem.cpp - Implementation of SaveSystem
+// SaveSystem.cpp - Game save/load persistence system
 #include "SaveSystem.h"
 #include "Player.h"
 #include "Dungeon.h"
 #include "SkillTree.h"
 #include <fstream>
-#include <iostream>
 #include <filesystem>
 
 namespace fs = std::filesystem;
 
-bool SaveSystem::saveGame(const std::string& slotName, const Player& player, const Dungeon& dungeon, const SkillTree& skillTree, int currentFloor) {
-    
+// ═══════════════════════════════════════════════════════════════════════════
+// SAVE/LOAD OPERATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+bool SaveSystem::saveGame(const std::string& slotName, const Player& player, 
+                          const Dungeon& dungeon, const SkillTree& skillTree, int currentFloor) {
     if (!fs::exists(saveDirectory)) {
         fs::create_directory(saveDirectory);
     }
@@ -21,7 +24,7 @@ bool SaveSystem::saveGame(const std::string& slotName, const Player& player, con
     j["skillTree"] = serializeSkillTree(skillTree);
     j["currentFloor"] = currentFloor;
 
-    std::string path = getSavePath(slotName);
+    const std::string path = getSavePath(slotName);
     std::ofstream file(path);
     if (!file.is_open()) return false;
 
@@ -29,9 +32,9 @@ bool SaveSystem::saveGame(const std::string& slotName, const Player& player, con
     return true;
 }
 
-bool SaveSystem::loadGame(const std::string& slotName, Player& player, Dungeon& dungeon, SkillTree& skillTree, int& currentFloor) {
-    
-    std::string path = getSavePath(slotName);
+bool SaveSystem::loadGame(const std::string& slotName, Player& player, 
+                          Dungeon& dungeon, SkillTree& skillTree, int& currentFloor) {
+    const std::string path = getSavePath(slotName);
     std::ifstream file(path);
     if (!file.is_open()) return false;
 
@@ -45,6 +48,10 @@ bool SaveSystem::loadGame(const std::string& slotName, Player& player, Dungeon& 
 
     return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SAVE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool SaveSystem::saveExists(const std::string& slotName) const {
     return fs::exists(getSavePath(slotName));
@@ -68,16 +75,20 @@ std::vector<std::string> SaveSystem::listSaves() const {
     return saves;
 }
 
-void SaveSystem::autoSave(const Player& player, const Dungeon& dungeon, const SkillTree& skillTree, int currentFloor) {
+void SaveSystem::autoSave(const Player& player, const Dungeon& dungeon, 
+                          const SkillTree& skillTree, int currentFloor) {
     if (autoSaveEnabled) {
         saveGame("autosave", player, dungeon, skillTree, currentFloor);
-        std::cout << "[SaveSystem] Auto-saved game." << std::endl;
     }
 }
 
 std::string SaveSystem::getSavePath(const std::string& slotName) const {
     return saveDirectory + slotName + ".json";
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SERIALIZATION - PLAYER
+// ═══════════════════════════════════════════════════════════════════════════
 
 nlohmann::json SaveSystem::serializePlayer(const Player& player) const {
     nlohmann::json j;
@@ -86,32 +97,53 @@ nlohmann::json SaveSystem::serializePlayer(const Player& player) const {
     j["exp"] = player.getExperience();
     j["hp"] = player.getHealth();
     j["maxHp"] = player.getMaxHealth();
-    // Add inventory serialization here
-    return j;
-}
-
-nlohmann::json SaveSystem::serializeDungeon(const Dungeon& dungeon) const {
-    nlohmann::json j;
-    // Serialize dungeon state (seed, rooms, etc.)
-    return j;
-}
-
-nlohmann::json SaveSystem::serializeSkillTree(const SkillTree& skillTree) const {
-    nlohmann::json j;
-    // Serialize unlocked skills
+    j["gold"] = player.getGold();
+    j["mana"] = player.getMana();
+    j["maxMana"] = player.getMaxMana();
+    // TODO: Add inventory serialization
     return j;
 }
 
 void SaveSystem::deserializePlayer(const nlohmann::json& j, Player& player) {
-    // player.setName(j["name"]); // Assuming setters exist
-    // player.setLevel(j["level"]);
-    // ...
+    // TODO: Implement player deserialization
+    // Requires adding setter methods to Player class
+    (void)j;      // Suppress unused parameter warning
+    (void)player;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SERIALIZATION - DUNGEON
+// ═══════════════════════════════════════════════════════════════════════════
+
+nlohmann::json SaveSystem::serializeDungeon(const Dungeon& dungeon) const {
+    nlohmann::json j;
+    // TODO: Serialize dungeon state (seed, rooms, tiles)
+    j["width"] = dungeon.getWidth();
+    j["height"] = dungeon.getHeight();
+    return j;
 }
 
 void SaveSystem::deserializeDungeon(const nlohmann::json& j, Dungeon& dungeon) {
-    // Restore dungeon state
+    // TODO: Implement dungeon restoration
+    (void)j;
+    (void)dungeon;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SERIALIZATION - SKILL TREE
+// ═══════════════════════════════════════════════════════════════════════════
+
+nlohmann::json SaveSystem::serializeSkillTree(const SkillTree& skillTree) const {
+    nlohmann::json j;
+    j["availablePoints"] = skillTree.getAvailablePoints();
+    j["unlockedCount"] = skillTree.getUnlockedSkillCount();
+    // TODO: Serialize individual unlocked skills
+    return j;
 }
 
 void SaveSystem::deserializeSkillTree(const nlohmann::json& j, SkillTree& skillTree) {
-    // Restore skills
+    // TODO: Implement skill tree restoration
+    (void)j;
+    (void)skillTree;
 }
+

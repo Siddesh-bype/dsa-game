@@ -1,169 +1,221 @@
 #include "SkillTree.h"
 #include "GameUtils.h"
-#include <iostream>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SKILL CONFIGURATION CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+    // Root Skill (Slash)
+    constexpr int SLASH_DAMAGE = 15;
+    constexpr int SLASH_MANA_COST = 5;
+    constexpr int SLASH_COOLDOWN = 0;
+    
+    // Warrior Path
+    constexpr int POWER_STRIKE_DAMAGE = 35;
+    constexpr int POWER_STRIKE_MANA = 15;
+    constexpr int POWER_STRIKE_COOLDOWN = 2;
+    
+    constexpr int WHIRLWIND_DAMAGE = 30;
+    constexpr int WHIRLWIND_MANA = 25;
+    constexpr int WHIRLWIND_COOLDOWN = 3;
+    
+    constexpr int FLAME_WAVE_DAMAGE = 25;
+    constexpr int FLAME_WAVE_BURN_DURATION = 3;
+    constexpr int FLAME_WAVE_MANA = 35;
+    constexpr int FLAME_WAVE_COOLDOWN = 5;
+    
+    constexpr float BERSERKER_DAMAGE_BONUS = 0.2f;
+    constexpr int IRON_SKIN_DEFENSE = 15;
+    constexpr float IRON_SKIN_RESIST = 0.1f;
+    
+    constexpr int SHIELD_BASH_DAMAGE = 20;
+    constexpr int SHIELD_BASH_MANA = 20;
+    constexpr int SHIELD_BASH_COOLDOWN = 4;
+    constexpr int SHIELD_BASH_STUN = 1;
+    
+    // Mage/Rogue Path
+    constexpr int MANA_SURGE_RESTORE = 40;
+    constexpr int MANA_SURGE_COOLDOWN = 5;
+    
+    constexpr int FIREBALL_DAMAGE = 45;
+    constexpr int FIREBALL_MANA = 30;
+    constexpr int FIREBALL_COOLDOWN = 2;
+    
+    constexpr int METEOR_DAMAGE = 60;
+    constexpr int METEOR_MANA = 50;
+    constexpr int METEOR_COOLDOWN = 8;
+    
+    constexpr float MANA_MASTERY_REDUCTION = 0.3f;
+    
+    constexpr int SHADOW_STEP_DISTANCE = 3;
+    constexpr int SHADOW_STEP_MANA = 15;
+    constexpr int SHADOW_STEP_COOLDOWN = 4;
+    constexpr int SHADOW_STEP_INVIS = 2;
+    
+    constexpr int ASSASSINATION_DAMAGE = 80;
+    constexpr int ASSASSINATION_MANA = 25;
+    constexpr int ASSASSINATION_COOLDOWN = 6;
+    
+    constexpr float EVASION_DODGE_CHANCE = 0.3f;
+    
+    // Synergy bonuses
+    constexpr float SYNERGY_POWER_IRON = 0.15f;
+    constexpr float SYNERGY_WHIRL_RAGE = 0.1f;
+    constexpr float SYNERGY_FLAME_WHIRL = 0.2f;
+    constexpr float SYNERGY_FIRE_MANA = 0.25f;
+    constexpr float SYNERGY_METEOR_FIRE = 0.1f;
+    constexpr float SYNERGY_SHADOW_BACK = 0.3f;
+    constexpr float SYNERGY_POISON_BACK = 0.2f;
+    constexpr float SYNERGY_IRON_REGEN = 0.1f;
+    constexpr float SYNERGY_MANA_REGEN = 0.15f;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTRUCTOR
+// ═══════════════════════════════════════════════════════════════════════════
 
 SkillTree::SkillTree() : availablePoints(0) {
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
 void SkillTree::initialize() {
-    std::cout << "[SkillTree] Initializing enhanced skill tree with 20+ skills..." << std::endl;
-    
     // Tier 0 - Root skill (always unlocked)
     Skill rootSkill("slash", "Slash", "active", "Basic sword attack - deals 15 damage", 0, 1);
     rootSkill.unlocked = true;
-    rootSkill.damage = 15;
-    rootSkill.manaCost = 5;
-    rootSkill.cooldown = 0;  // No cooldown - basic attack
+    rootSkill.damage = SLASH_DAMAGE;
+    rootSkill.manaCost = SLASH_MANA_COST;
+    rootSkill.cooldown = SLASH_COOLDOWN;
     tree.setRoot(rootSkill);
     root = tree.getRoot();
     
-    // ===== LEFT BRANCH - WARRIOR PATH (Offense/Tank) =====
+    // Initialize skill branches
+    initializeWarriorBranch();
+    initializeMageBranch();
     
+    availablePoints = INITIAL_SKILL_POINTS;
+    
+    // Initialize synergies
+    initializeSynergies();
+}
+
+void SkillTree::initializeWarriorBranch() {
     // Tier 1 Left - Power Strike (Hotkey 2)
     auto powerStrike = tree.insertLeft(root, 
         Skill("power_strike", "Power Strike", "active", "Powerful attack - 35 damage, 2 turn cooldown", 1, 2));
-    powerStrike->data.damage = 35;
-    powerStrike->data.manaCost = 15;
-    powerStrike->data.cooldown = 2;
-    powerStrike->data.unlocked = true;  // Auto-unlock for player
+    powerStrike->data.damage = POWER_STRIKE_DAMAGE;
+    powerStrike->data.manaCost = POWER_STRIKE_MANA;
+    powerStrike->data.cooldown = POWER_STRIKE_COOLDOWN;
+    powerStrike->data.unlocked = true;
     
     // Tier 2 Left Branch - Whirlwind (AOE) (Hotkey 3)
     auto whirlwind = tree.insertLeft(powerStrike, 
         Skill("whirlwind", "Whirlwind", "active", "Spin attack hitting all adjacent enemies for 30 damage", 2, 3));
-    whirlwind->data.damage = 30;
+    whirlwind->data.damage = WHIRLWIND_DAMAGE;
     whirlwind->data.aoe = true;
-    whirlwind->data.manaCost = 25;
-    whirlwind->data.cooldown = 3;
-    whirlwind->data.unlocked = true;  // Auto-unlock for player
+    whirlwind->data.manaCost = WHIRLWIND_MANA;
+    whirlwind->data.cooldown = WHIRLWIND_COOLDOWN;
+    whirlwind->data.unlocked = true;
     
     // Tier 3 Left-Left - Flame Wave (Fire AOE)
     auto flameWave = tree.insertLeft(whirlwind, 
         Skill("flame_wave", "Flame Wave", "active", "Burning wave dealing 25 dmg + 10 burn/turn for 3 turns", 3, 4));
-    flameWave->data.damage = 25;
+    flameWave->data.damage = FLAME_WAVE_DAMAGE;
     flameWave->data.aoe = true;
-    flameWave->data.burnDuration = 3;
-    flameWave->data.manaCost = 35;
-    flameWave->data.cooldown = 5;
+    flameWave->data.burnDuration = FLAME_WAVE_BURN_DURATION;
+    flameWave->data.manaCost = FLAME_WAVE_MANA;
+    flameWave->data.cooldown = FLAME_WAVE_COOLDOWN;
     
     // Tier 3 Left-Right - Berserker Rage (Passive)
     auto berserkerRage = tree.insertRight(whirlwind, 
         Skill("berserker_rage", "Berserker Rage", "passive", "+20% damage when below 50% HP", 2, 0));
-    berserkerRage->data.attackSpeedBonus = 0.2f;
+    berserkerRage->data.attackSpeedBonus = BERSERKER_DAMAGE_BONUS;
     
     // Tier 2 Right Branch - Iron Skin (Passive Defense)
     auto ironSkin = tree.insertRight(powerStrike, 
         Skill("iron_skin", "Iron Skin", "passive", "+15 defense, +10% damage resistance", 2, 0));
-    ironSkin->data.defenseBonus = 15;
-    ironSkin->data.damageResistance = 0.1f;
+    ironSkin->data.defenseBonus = IRON_SKIN_DEFENSE;
+    ironSkin->data.damageResistance = IRON_SKIN_RESIST;
     
     // Tier 3 Right-Left - Shield Bash
     auto shieldBash = tree.insertLeft(ironSkin,
         Skill("shield_bash", "Shield Bash", "active", "Stun enemy for 1 turn, 20 damage", 2, 0));
-    shieldBash->data.damage = 20;
-    shieldBash->data.manaCost = 20;
-    shieldBash->data.cooldown = 4;
-    shieldBash->data.duration = 1;  // Stun duration
+    shieldBash->data.damage = SHIELD_BASH_DAMAGE;
+    shieldBash->data.manaCost = SHIELD_BASH_MANA;
+    shieldBash->data.cooldown = SHIELD_BASH_COOLDOWN;
+    shieldBash->data.duration = SHIELD_BASH_STUN;
     
     // Tier 3 Right-Right - Revenge
     auto revenge = tree.insertRight(ironSkin,
         Skill("revenge", "Revenge", "passive", "Deal 50% of damage taken back to attacker", 3, 0));
-    revenge->data.damageResistance = 0.0f;  // Using as thorns damage
-    
-    // ===== RIGHT BRANCH - MAGE/ROGUE PATH (Magic/Utility) =====
-    
+    revenge->data.damageResistance = 0.0f;
+}
+
+void SkillTree::initializeMageBranch() {
     // Tier 1 Right - Mana Surge (Hotkey 4)
     auto manaSurge = tree.insertRight(root, 
         Skill("mana_surge", "Mana Surge", "active", "Restore 40 mana instantly", 1, 4));
-    manaSurge->data.healing = 40;  // Using healing field for mana
+    manaSurge->data.healing = MANA_SURGE_RESTORE;
     manaSurge->data.manaCost = 0;
-    manaSurge->data.cooldown = 5;
-    manaSurge->data.unlocked = true;  // Auto-unlock for player
+    manaSurge->data.cooldown = MANA_SURGE_COOLDOWN;
+    manaSurge->data.unlocked = true;
     
     // Tier 2 Left Branch - Fireball (Hotkey 5)
     auto fireball = tree.insertLeft(manaSurge, 
         Skill("fireball", "Fireball", "active", "Ranged fire attack - 45 damage", 2, 5));
-    fireball->data.damage = 45;
-    fireball->data.manaCost = 30;
-    fireball->data.cooldown = 2;
-    fireball->data.unlocked = true;  // Auto-unlock for player
+    fireball->data.damage = FIREBALL_DAMAGE;
+    fireball->data.manaCost = FIREBALL_MANA;
+    fireball->data.cooldown = FIREBALL_COOLDOWN;
+    fireball->data.unlocked = true;
     
     // Tier 3 Left-Left - Meteor Storm
     auto meteorStorm = tree.insertLeft(fireball,
         Skill("meteor_storm", "Meteor Storm", "active", "Massive AOE - 60 damage to all enemies", 4, 0));
-    meteorStorm->data.damage = 60;
+    meteorStorm->data.damage = METEOR_DAMAGE;
     meteorStorm->data.aoe = true;
-    meteorStorm->data.manaCost = 50;
-    meteorStorm->data.cooldown = 8;
+    meteorStorm->data.manaCost = METEOR_MANA;
+    meteorStorm->data.cooldown = METEOR_COOLDOWN;
     
     // Tier 3 Left-Right - Mana Mastery
     auto manaMastery = tree.insertRight(fireball,
         Skill("mana_mastery", "Mana Mastery", "passive", "All spells cost 30% less mana", 2, 0));
-    manaMastery->data.attackSpeedBonus = 0.3f;  // Using for mana reduction
+    manaMastery->data.attackSpeedBonus = MANA_MASTERY_REDUCTION;
     
     // Tier 2 Right Branch - Shadow Step
     auto shadowStep = tree.insertRight(manaSurge, 
         Skill("shadow_step", "Shadow Step", "active", "Teleport 3 tiles, become invisible for 2 turns", 2, 5));
-    shadowStep->data.dashDistance = 3;
-    shadowStep->data.manaCost = 15;
-    shadowStep->data.cooldown = 4;
-    shadowStep->data.duration = 2;  // Invisibility duration
+    shadowStep->data.dashDistance = SHADOW_STEP_DISTANCE;
+    shadowStep->data.manaCost = SHADOW_STEP_MANA;
+    shadowStep->data.cooldown = SHADOW_STEP_COOLDOWN;
+    shadowStep->data.duration = SHADOW_STEP_INVIS;
     
     // Tier 3 Right-Left - Assassination
     auto assassination = tree.insertLeft(shadowStep,
         Skill("assassination", "Assassination", "active", "Backstab for 80 damage (requires invisibility)", 3, 0));
-    assassination->data.damage = 80;
-    assassination->data.manaCost = 25;
-    assassination->data.cooldown = 6;
+    assassination->data.damage = ASSASSINATION_DAMAGE;
+    assassination->data.manaCost = ASSASSINATION_MANA;
+    assassination->data.cooldown = ASSASSINATION_COOLDOWN;
     
     // Tier 3 Right-Right - Evasion
     auto evasion = tree.insertRight(shadowStep,
         Skill("evasion", "Evasion", "passive", "30% chance to dodge attacks", 2, 0));
-    evasion->data.critChance = 0.3f;  // Using crit for dodge chance
-    
-    availablePoints = INITIAL_SKILL_POINTS;  // Starting skill points
-    
-    // OPTIMIZATION: Use Tree's size() and height() methods for diagnostics
-    std::cout << "[SkillTree] Enhanced skill tree initialized with " << availablePoints << " available points" << std::endl;
-    std::cout << "[SkillTree] Total skills: " << tree.size() << " (1 unlocked, " << (tree.size() - 1) << " locked)" << std::endl;
-    std::cout << "[SkillTree] Tree height: " << tree.height() << " levels" << std::endl;
-    std::cout << "[SkillTree] Tree balanced: " << (tree.isBalanced() ? "Yes" : "No") << std::endl;
+    evasion->data.critChance = EVASION_DODGE_CHANCE;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SKILL UNLOCKING
+// ═══════════════════════════════════════════════════════════════════════════
 
 void SkillTree::unlockSkill(std::shared_ptr<BinaryTree<Skill>::Node> node) {
     if (!node) return;
+    if (node->data.unlocked) return;
+    if (!canUnlock(node)) return;
     
-    if (node->data.unlocked) {
-        std::cout << "[SkillTree] Skill " << node->data.name << " already unlocked!" << std::endl;
-        return;
-    }
-    
-    if (!canUnlock(node)) {
-        std::cout << "[SkillTree] Cannot unlock " << node->data.name 
-                  << " - prerequisites: ";
-        
-        if (availablePoints < node->data.cost) {
-            std::cout << "need " << node->data.cost << " points, have " << availablePoints;
-        } else {
-            std::cout << "parent skill not unlocked";
-        }
-        std::cout << std::endl;
-        return;
-    }
-    
-    // Unlock the skill
     node->data.unlocked = true;
     availablePoints -= node->data.cost;
-    
-    std::cout << "[SkillTree] ✓ Unlocked skill: " << node->data.name 
-              << " (" << node->data.type << ", cost: " << node->data.cost 
-              << ") - Points remaining: " << availablePoints << std::endl;
-    
-    // Apply passive bonuses immediately (handled by Player class when needed)
-    if (node->data.type == "passive") {
-        std::cout << "[SkillTree] Passive effect activated: " << node->data.description << std::endl;
-    } else {
-        std::cout << "[SkillTree] Active skill assigned to hotkey " << node->data.hotkey << std::endl;
-    }
 }
 
 bool SkillTree::canUnlock(std::shared_ptr<BinaryTree<Skill>::Node> node) const {
@@ -171,45 +223,34 @@ bool SkillTree::canUnlock(std::shared_ptr<BinaryTree<Skill>::Node> node) const {
     if (node->data.unlocked) return false;
     if (availablePoints < node->data.cost) return false;
     
-    // Root skill is always unlockable (but already unlocked)
+    // Root skill is always unlockable
     if (node == root) return true;
     
-    // Check if parent is unlocked - need to find parent
-    bool parentUnlocked = false;
-    
+    // Check if parent is unlocked
     std::function<bool(std::shared_ptr<BinaryTree<Skill>::Node>, std::shared_ptr<BinaryTree<Skill>::Node>)> findParent;
-    findParent = [&](std::shared_ptr<BinaryTree<Skill>::Node> current, std::shared_ptr<BinaryTree<Skill>::Node> target) -> bool {
+    findParent = [&](std::shared_ptr<BinaryTree<Skill>::Node> current, 
+                     std::shared_ptr<BinaryTree<Skill>::Node> target) -> bool {
         if (!current) return false;
         
-        // Check if target is direct child
         if (current->left == target || current->right == target) {
             return current->data.unlocked;
         }
         
-        // Recurse
         return findParent(current->left, target) || findParent(current->right, target);
     };
     
-    parentUnlocked = findParent(root, node);
-    
-    return parentUnlocked;
+    return findParent(root, node);
 }
 
 void SkillTree::addPoints(int points) {
     availablePoints += points;
-    std::cout << "[SkillTree] Added " << points << " skill points. Total: " 
-              << availablePoints << std::endl;
-    
-    // OPTIMIZATION: Show tree statistics when points are added
-    std::cout << "[SkillTree] Skills unlocked: " << getActiveSkills().size() 
-              << " / " << tree.size() << std::endl;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SKILL LOOKUP
+// ═══════════════════════════════════════════════════════════════════════════
+
 Skill* SkillTree::getSkillByHotkey(int hotkey) {
-    // OPTIMIZATION: Could use tree.contains() for existence check first
-    // But we need the actual skill data, so recursive search is still needed
-    
-    // Recursively search tree for skill with matching hotkey
     std::function<Skill*(std::shared_ptr<BinaryTree<Skill>::Node>)> search;
     search = [&](std::shared_ptr<BinaryTree<Skill>::Node> node) -> Skill* {
         if (!node) return nullptr;
@@ -246,20 +287,58 @@ std::vector<Skill*> SkillTree::getActiveSkills() {
     return activeSkills;
 }
 
+int SkillTree::getUnlockedSkillCount() const {
+    int count = 0;
+    
+    std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>)> countSkills;
+    countSkills = [&](std::shared_ptr<BinaryTree<Skill>::Node> node) {
+        if (!node) return;
+        if (node->data.unlocked) count++;
+        countSkills(node->left);
+        countSkills(node->right);
+    };
+    
+    countSkills(root);
+    return count;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COOLDOWN MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+void SkillTree::updateCooldowns() {
+    std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>)> traverse;
+    traverse = [&](std::shared_ptr<BinaryTree<Skill>::Node> node) {
+        if (!node) return;
+        
+        if (node->data.currentCooldown > 0) {
+            node->data.currentCooldown--;
+        }
+        
+        traverse(node->left);
+        traverse(node->right);
+    };
+    
+    traverse(root);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+
 void SkillTree::render(sf::RenderWindow& window, sf::Font& font, sf::Vector2f mousePos) {
     if (!root) return;
     
-    // Recursive render function using class constants
     std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>, float, float, float)> renderNode;
     renderNode = [&](std::shared_ptr<BinaryTree<Skill>::Node> node, float x, float y, float width) {
         if (!node) return;
         
-        // Draw connections first (so they are behind nodes)
-        sf::Color lineColor(LINE_GRAY, LINE_GRAY, LINE_GRAY);
+        const sf::Color lineColor(LINE_GRAY, LINE_GRAY, LINE_GRAY);
         
+        // Draw connections to children
         if (node->left) {
-            float childX = x - width / 2.0f;
-            float childY = y + LEVEL_HEIGHT;
+            const float childX = x - width / 2.0f;
+            const float childY = y + LEVEL_HEIGHT;
             
             sf::Vertex line[] = {
                 sf::Vertex{{x, y}, lineColor},
@@ -271,8 +350,8 @@ void SkillTree::render(sf::RenderWindow& window, sf::Font& font, sf::Vector2f mo
         }
         
         if (node->right) {
-            float childX = x + width / 2.0f;
-            float childY = y + LEVEL_HEIGHT;
+            const float childX = x + width / 2.0f;
+            const float childY = y + LEVEL_HEIGHT;
             
             sf::Vertex line[] = {
                 sf::Vertex{{x, y}, lineColor},
@@ -300,9 +379,9 @@ void SkillTree::render(sf::RenderWindow& window, sf::Font& font, sf::Vector2f mo
             outlineColor = sf::Color::Yellow;
         }
         
-        // Hover effect - use helper to eliminate duplicate distance calc
-        float dist = pointDistance(mousePos.x, mousePos.y, x, y);
-        bool hovered = (dist <= NODE_RADIUS);
+        // Hover effect
+        const float dist = pointDistance(mousePos.x, mousePos.y, x, y);
+        const bool hovered = (dist <= NODE_RADIUS);
         
         if (hovered) {
             outlineColor = sf::Color::Cyan;
@@ -311,79 +390,64 @@ void SkillTree::render(sf::RenderWindow& window, sf::Font& font, sf::Vector2f mo
         circle.setFillColor(fillColor);
         circle.setOutlineColor(outlineColor);
         circle.setOutlineThickness(hovered ? OUTLINE_HOVER : OUTLINE_NORMAL);
-        
         window.draw(circle);
         
-        // Draw icon/text inside
+        // Draw icon
         sf::Text iconText(font);
         iconText.setString(node->data.name.substr(0, 1));
         iconText.setCharacterSize(ICON_FONT_SIZE);
         iconText.setFillColor(sf::Color::White);
-        sf::FloatRect bounds = iconText.getLocalBounds();
-        iconText.setOrigin({bounds.size.x/2.f, bounds.size.y/2.f});
+        const sf::FloatRect bounds = iconText.getLocalBounds();
+        iconText.setOrigin({bounds.size.x / 2.f, bounds.size.y / 2.f});
         iconText.setPosition({x, y - ICON_Y_OFFSET});
         window.draw(iconText);
         
+        // Draw tooltip on hover
         if (hovered) {
-             // Draw tooltip
-             sf::RectangleShape tooltipBg(sf::Vector2f(TOOLTIP_WIDTH, TOOLTIP_HEIGHT));
-             tooltipBg.setPosition(mousePos + sf::Vector2f(TOOLTIP_OFFSET, TOOLTIP_OFFSET));
-             tooltipBg.setFillColor(sf::Color(0, 0, 0, TOOLTIP_BG_ALPHA));
-             tooltipBg.setOutlineThickness(1.f);
-             tooltipBg.setOutlineColor(sf::Color::White);
-             window.draw(tooltipBg);
-             
-             sf::Text tooltipText(font);
-             tooltipText.setCharacterSize(TOOLTIP_FONT_SIZE);
-             tooltipText.setPosition(mousePos + sf::Vector2f(TOOLTIP_PADDING, TOOLTIP_PADDING));
-             tooltipText.setFillColor(sf::Color::White);
-             
-             std::string text = node->data.name + "\n" + node->data.description;
-             if (!node->data.unlocked) {
-                 text += "\nCost: " + std::to_string(node->data.cost) + " SP";
-                 text += canUnlock(node) ? "\n(Click to Unlock)" : "\n(Locked)";
-             }
-             tooltipText.setString(text);
-             window.draw(tooltipText);
+            renderTooltip(window, font, mousePos, node);
         }
     };
     
     renderNode(root, TREE_START_X, TREE_START_Y, BASE_WIDTH);
 }
 
-void SkillTree::displayTree() {
-    std::cout << "\n[SkillTree] Current skill tree (Level-order):" << std::endl;
-    std::cout << "[SkillTree] Tree stats - Height: " << tree.height() 
-              << ", Size: " << tree.size() 
-              << ", Balanced: " << (tree.isBalanced() ? "Yes" : "No") << std::endl;
+void SkillTree::renderTooltip(sf::RenderWindow& window, sf::Font& font, 
+                              sf::Vector2f mousePos, 
+                              std::shared_ptr<BinaryTree<Skill>::Node> node) const {
+    sf::RectangleShape tooltipBg(sf::Vector2f(TOOLTIP_WIDTH, TOOLTIP_HEIGHT));
+    tooltipBg.setPosition(mousePos + sf::Vector2f(TOOLTIP_OFFSET, TOOLTIP_OFFSET));
+    tooltipBg.setFillColor(sf::Color(0, 0, 0, TOOLTIP_BG_ALPHA));
+    tooltipBg.setOutlineThickness(1.f);
+    tooltipBg.setOutlineColor(sf::Color::White);
+    window.draw(tooltipBg);
     
+    sf::Text tooltipText(font);
+    tooltipText.setCharacterSize(TOOLTIP_FONT_SIZE);
+    tooltipText.setPosition(mousePos + sf::Vector2f(TOOLTIP_PADDING, TOOLTIP_PADDING));
+    tooltipText.setFillColor(sf::Color::White);
+    
+    std::string text = node->data.name + "\n" + node->data.description;
+    if (!node->data.unlocked) {
+        text += "\nCost: " + std::to_string(node->data.cost) + " SP";
+        text += canUnlock(node) ? "\n(Click to Unlock)" : "\n(Locked)";
+    }
+    tooltipText.setString(text);
+    window.draw(tooltipText);
+}
+
+void SkillTree::displayTree() {
     tree.levelOrder([](const Skill& skill) {
-        std::cout << "  - " << skill.name << " [" 
-                  << (skill.unlocked ? "UNLOCKED" : "locked") << "] "
-                  << "Cost: " << skill.cost << std::endl;
+        // Silent traversal - no console output
     });
 }
 
-void SkillTree::updateCooldowns() {
-    std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>)> traverse;
-    traverse = [&](std::shared_ptr<BinaryTree<Skill>::Node> node) {
-        if (!node) return;
-        
-        if (node->data.currentCooldown > 0) {
-            node->data.currentCooldown--;
-        }
-        
-        traverse(node->left);
-        traverse(node->right);
-    };
-    
-    traverse(root);
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// CLICK HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool SkillTree::tryUnlockAt(sf::Vector2f mousePos) {
     if (!root) return false;
     
-    // Uses class constants - no duplicate definitions needed
     bool unlockedSomething = false;
     
     std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>, float, float, float)> checkClick;
@@ -400,14 +464,11 @@ bool SkillTree::tryUnlockAt(sf::Vector2f mousePos) {
         
         if (unlockedSomething) return;
         
-        // Use helper to eliminate duplicate distance calculation
-        float dist = pointDistance(mousePos.x, mousePos.y, x, y);
+        const float dist = pointDistance(mousePos.x, mousePos.y, x, y);
         
         if (dist <= NODE_RADIUS && !node->data.unlocked && canUnlock(node)) {
             unlockSkill(node);
             unlockedSomething = true;
-            
-            // 🎮 Add unlock animation
             unlockAnimations.push_back({node->data.id, 0.f, 1.0f});
         }
     };
@@ -416,39 +477,37 @@ bool SkillTree::tryUnlockAt(sf::Vector2f mousePos) {
     return unlockedSomething;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// SYNERGY AND ANIMATION SYSTEMS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// SYNERGY SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
 
 void SkillTree::initializeSynergies() {
     synergies.clear();
     
     // Warrior synergies
-    synergies.push_back({"power_strike", "iron_skin", "damage", 0.15f});      // +15% damage
-    synergies.push_back({"whirlwind", "berserker_rage", "attack_speed", 0.1f}); // +10% attack speed
-    synergies.push_back({"flame_wave", "whirlwind", "aoe_damage", 0.2f});      // +20% AOE damage
+    synergies.push_back({"power_strike", "iron_skin", "damage", SYNERGY_POWER_IRON});
+    synergies.push_back({"whirlwind", "berserker_rage", "attack_speed", SYNERGY_WHIRL_RAGE});
+    synergies.push_back({"flame_wave", "whirlwind", "aoe_damage", SYNERGY_FLAME_WHIRL});
     
     // Mage synergies
-    synergies.push_back({"fireball", "mana_mastery", "spell_damage", 0.25f});  // +25% spell damage
-    synergies.push_back({"meteor_storm", "fireball", "critical", 0.1f});       // +10% crit chance
+    synergies.push_back({"fireball", "mana_mastery", "spell_damage", SYNERGY_FIRE_MANA});
+    synergies.push_back({"meteor_storm", "fireball", "critical", SYNERGY_METEOR_FIRE});
     
     // Rogue synergies  
-    synergies.push_back({"shadow_step", "backstab", "stealth_damage", 0.3f}); // +30% from stealth
-    synergies.push_back({"poison_blade", "backstab", "dot_damage", 0.2f});    // +20% DOT damage
+    synergies.push_back({"shadow_step", "backstab", "stealth_damage", SYNERGY_SHADOW_BACK});
+    synergies.push_back({"poison_blade", "backstab", "dot_damage", SYNERGY_POISON_BACK});
     
     // Cross-class synergies
-    synergies.push_back({"iron_skin", "regeneration", "max_hp", 0.1f});       // +10% max HP
-    synergies.push_back({"mana_mastery", "regeneration", "mana_regen", 0.15f}); // +15% mana regen
-    
-    std::cout << "[SkillTree] Initialized " << synergies.size() << " synergy bonuses" << std::endl;
+    synergies.push_back({"iron_skin", "regeneration", "max_hp", SYNERGY_IRON_REGEN});
+    synergies.push_back({"mana_mastery", "regeneration", "mana_regen", SYNERGY_MANA_REGEN});
 }
 
 float SkillTree::getSynergyBonus(const std::string& bonusType) const {
     float total = 0.f;
     
     for (const auto& synergy : synergies) {
-        // Check if both skills are unlocked
-        bool skill1Unlocked = false, skill2Unlocked = false;
+        bool skill1Unlocked = false;
+        bool skill2Unlocked = false;
         
         std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>)> findSkills;
         findSkills = [&](std::shared_ptr<BinaryTree<Skill>::Node> node) {
@@ -468,6 +527,10 @@ float SkillTree::getSynergyBonus(const std::string& bonusType) const {
     return total;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ANIMATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
 void SkillTree::updateAnimations(float deltaTime) {
     for (auto it = unlockAnimations.begin(); it != unlockAnimations.end();) {
         it->timer += deltaTime;
@@ -479,18 +542,9 @@ void SkillTree::updateAnimations(float deltaTime) {
     }
 }
 
-int SkillTree::getUnlockedSkillCount() const {
-    int count = 0;
-    std::function<void(std::shared_ptr<BinaryTree<Skill>::Node>)> countSkills;
-    countSkills = [&](std::shared_ptr<BinaryTree<Skill>::Node> node) {
-        if (!node) return;
-        if (node->data.unlocked) count++;
-        countSkills(node->left);
-        countSkills(node->right);
-    };
-    countSkills(root);
-    return count;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// PASSIVE BONUSES
+// ═══════════════════════════════════════════════════════════════════════════
 
 float SkillTree::getTotalPassiveBonus(const std::string& stat) const {
     float total = 0.f;
@@ -517,3 +571,4 @@ float SkillTree::getTotalPassiveBonus(const std::string& stat) const {
     
     return total;
 }
+

@@ -30,6 +30,9 @@ set(SOURCES
     src/DungeonLevelManager.cpp
     src/ItemManager.cpp
     src/Shop.cpp
+    src/SaveSystem.cpp
+    src/SettingsManager.cpp
+    src/AchievementSystem.cpp
     src/DataStructures/Stack.cpp
     src/DataStructures/Queue.cpp
     src/DataStructures/LinkedList.cpp
@@ -42,6 +45,8 @@ set(SOURCES
     src/InventoryRenderer.cpp
     src/UIVisualEffects.cpp
     src/SoundManager.cpp
+    src/Animation.cpp
+    src/ItemWheel.cpp
 )
 
 # Create executable

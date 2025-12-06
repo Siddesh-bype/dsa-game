@@ -6,6 +6,7 @@
 #include "Dungeon.h"
 #include "DSAVisualizer.h"
 #include "InventoryRenderer.h"
+#include "ItemWheel.h"
 
 class Game;
 class EnemyManager;
@@ -64,10 +65,12 @@ private:
     sf::RectangleShape xpBarBg;
     sf::RectangleShape xpBarFg;
     
-    // Panel visibility flags
     bool inventoryVisible;
     bool skillTreeVisible;
     bool miniMapVisible;
+    
+    // CHANGE: 2025-12-06 - Item Wheel for radial item selection
+    ItemWheel itemWheel;
     
     // Helper rendering methods
     void renderHUD(sf::RenderWindow& window, const Player& player, class SkillTree* skillTree, int currentFloor = 1);
@@ -134,6 +137,11 @@ public:
     void toggleInventory();
     void toggleSkillTree();
     void toggleMiniMap();
+    
+    // CHANGE: 2025-12-06 - Item wheel control
+    void toggleItemWheel(sf::Vector2f screenCenter, const Player* player = nullptr);
+    bool isItemWheelOpen() const { return itemWheel.isOpen(); }
+    ItemWheel& getItemWheel() { return itemWheel; }
     
     
     void updateHUD(const Player& player);

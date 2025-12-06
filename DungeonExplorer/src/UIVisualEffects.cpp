@@ -1,10 +1,48 @@
 #include "UIVisualEffects.h"
 #include "GameUtils.h"
-#include <iostream>
 #include <algorithm>
+#include <cmath>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+    // Shadow settings
+    constexpr int SOFT_SHADOW_LAYERS = 4;
+    constexpr float SOFT_SHADOW_BASE_ALPHA = 40.f;
+    constexpr float HARD_SHADOW_ALPHA = 100.f;
+    constexpr float AMBIENT_SHADOW_SIZE = 10.f;
+    constexpr float AMBIENT_SHADOW_OFFSET = 5.f;
+    constexpr float AMBIENT_SHADOW_ALPHA = 30.f;
+    
+    // Glass effect settings
+    constexpr float GLASS_OVERLAY_ALPHA = 40.f;
+    constexpr float GLASS_PANEL_ALPHA = 180.f;
+    constexpr float GLASS_EDGE_ALPHA = 40.f;
+    constexpr float GLASS_HIGHLIGHT_HEIGHT = 2.f;
+    constexpr float GLASS_HIGHLIGHT_ALPHA = 25.f;
+    
+    // Carved edge settings
+    constexpr float CARVED_EDGE_THICKNESS = 2.f;
+    constexpr float CARVED_DARK_ALPHA = 60.f;
+    constexpr float CARVED_LIGHT_ALPHA = 30.f;
+    
+    // Animation settings
+    constexpr float BAR_LERP_SMOOTHNESS = 8.0f;
+    constexpr float LERP_SNAP_THRESHOLD = 0.001f;
+    
+    // Radial gradient settings
+    constexpr int DEFAULT_RADIAL_SEGMENTS = 48;
+    constexpr float PI = 3.14159265f;
+}
 
 // Static member initialization
 std::map<std::string, sf::VertexArray> UIVisualEffects::gradientCache;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANEL RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
 
 void UIVisualEffects::drawPanelWithShadow(
     sf::RenderWindow& window,
@@ -17,10 +55,9 @@ void UIVisualEffects::drawPanelWithShadow(
     // Draw shadow layers
     if (shadowType == ShadowType::Soft) {
         // Multi-layer soft shadow with decreasing alpha
-        const int layers = 4;
-        for (int i = layers; i > 0; --i) {
-            float layerBlur = shadowBlur * (static_cast<float>(i) / layers);
-            float alpha = 40.f / i;  // Decrease alpha for outer layers
+        for (int i = SOFT_SHADOW_LAYERS; i > 0; --i) {
+            const float layerBlur = shadowBlur * (static_cast<float>(i) / SOFT_SHADOW_LAYERS);
+            const float alpha = SOFT_SHADOW_BASE_ALPHA / i;
             
             sf::RectangleShape shadowLayer(sf::Vector2f(rect.size.x + layerBlur * 2,
                                                           rect.size.y + layerBlur * 2));

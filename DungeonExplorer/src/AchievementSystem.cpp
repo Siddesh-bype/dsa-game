@@ -3,10 +3,50 @@
 
 #include "AchievementSystem.h"
 #include "GameUtils.h"
-#include <iostream>
+#include <algorithm>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACHIEVEMENT THRESHOLD CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+    // Combat thresholds
+    constexpr int SLAYER_KILL_THRESHOLD = 100;
+    constexpr int GENOCIDE_KILL_THRESHOLD = 500;
+    constexpr int BOSS_SLAYER_THRESHOLD = 5;
+    constexpr int BOSS_MASTER_THRESHOLD = 10;
+    constexpr int CRITICAL_MASTER_THRESHOLD = 50;
+    
+    // Exploration thresholds
+    constexpr int FLOOR_5_THRESHOLD = 5;
+    constexpr int FLOOR_10_THRESHOLD = 10;
+    constexpr int EXPLORER_ROOMS_THRESHOLD = 100;
+    constexpr int TREASURE_HUNTER_THRESHOLD = 25;
+    constexpr int KEY_COLLECTOR_THRESHOLD = 10;
+    constexpr float SPEEDRUNNER_TIME_SECONDS = 120.0f;
+    
+    // Collection thresholds
+    constexpr int COLLECTOR_ITEMS_THRESHOLD = 50;
+    constexpr int HOARDER_ITEMS_THRESHOLD = 200;
+    constexpr int GOLD_DIGGER_THRESHOLD = 1000;
+    constexpr int MILLIONAIRE_THRESHOLD = 10000;
+    constexpr int POTION_MASTER_THRESHOLD = 50;
+    constexpr int MERCHANT_PURCHASES_THRESHOLD = 20;
+    
+    // Progression thresholds
+    constexpr int SKILL_MASTER_THRESHOLD = 10;
+    constexpr int SKILL_GOD_THRESHOLD = 25;
+    constexpr int LEVEL_10_THRESHOLD = 10;
+    constexpr int LEVEL_20_THRESHOLD = 20;
+    constexpr int MAX_LEVEL_THRESHOLD = 50;
+    constexpr int SAVIOR_SAVES_THRESHOLD = 10;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
 
 void AchievementSystem::initialize() {
-    std::cout << "[Achievements] Initializing achievement system..." << std::endl;
     
     // ═══════════════════════════════════════════════════════════════════════
     // COMBAT ACHIEVEMENTS
@@ -83,8 +123,6 @@ void AchievementSystem::initialize() {
         "Buy 20 items from the shop", 150, ""));
     achievements.insert("savior", Achievement("savior", "Savior", 
         "Save the game 10 times", 50, ""));
-    
-    std::cout << "[Achievements] Initialized with " << achievements.size() << " achievements" << std::endl;
 }
 
 bool AchievementSystem::unlockAchievement(const std::string& achievementId) {
@@ -92,23 +130,6 @@ bool AchievementSystem::unlockAchievement(const std::string& achievementId) {
     if (achPtr && !achPtr->unlocked) {
         achPtr->unlocked = true;
         achPtr->unlockedTimestamp = std::time(nullptr);
-        
-        // Visual feedback
-        std::cout << "\n╔════════════════════════════════════════╗" << std::endl;
-        std::cout << "║  🏆 ACHIEVEMENT UNLOCKED! 🏆          ║" << std::endl;
-        std::cout << "╠════════════════════════════════════════╣" << std::endl;
-        std::cout << "║  " << achPtr->name << std::string(38 - achPtr->name.length(), ' ') << "║" << std::endl;
-        std::cout << "║  " << achPtr->description << std::string(38 - achPtr->description.length(), ' ') << "║" << std::endl;
-        
-        if (achPtr->rewardGold > 0) {
-            std::cout << "║  💰 Reward: " << achPtr->rewardGold << " gold" << std::string(24 - std::to_string(achPtr->rewardGold).length(), ' ') << "║" << std::endl;
-        }
-        if (!achPtr->rewardItem.empty()) {
-            std::cout << "║  🎁 Item: " << achPtr->rewardItem << std::string(28 - achPtr->rewardItem.length(), ' ') << "║" << std::endl;
-        }
-        
-        std::cout << "╚════════════════════════════════════════╝\n" << std::endl;
-        
         totalUnlockedCount++;
         return true;
     }
@@ -130,19 +151,19 @@ void AchievementSystem::trackKill(const std::string& enemyType) {
     // Boss tracking
     if (enemyType == "boss" || enemyType == "dragon" || enemyType == "lich") {
         bossKills++;
-        if (bossKills >= 5) unlockAchievement("boss_slayer");
-        if (bossKills >= 10) unlockAchievement("boss_master");
+        if (bossKills >= BOSS_SLAYER_THRESHOLD) unlockAchievement("boss_slayer");
+        if (bossKills >= BOSS_MASTER_THRESHOLD) unlockAchievement("boss_master");
     }
     
     // General kill milestones
     if (totalKills == 1) unlockAchievement("first_blood");
-    if (totalKills >= 100) unlockAchievement("slayer");
-    if (totalKills >= 500) unlockAchievement("genocide");
+    if (totalKills >= SLAYER_KILL_THRESHOLD) unlockAchievement("slayer");
+    if (totalKills >= GENOCIDE_KILL_THRESHOLD) unlockAchievement("genocide");
 }
 
 void AchievementSystem::trackCriticalHit() {
     criticalHits++;
-    if (criticalHits >= 50) {
+    if (criticalHits >= CRITICAL_MASTER_THRESHOLD) {
         unlockAchievement("critical_master");
     }
 }
@@ -164,27 +185,27 @@ void AchievementSystem::trackBossKilledAtLowHP(int remainingHP) {
 void AchievementSystem::trackFloorComplete(int floor) {
     floorsCompleted = std::max(floorsCompleted, floor);
     
-    if (floor >= 5) unlockAchievement("floor_5");
-    if (floor >= 10) unlockAchievement("floor_10");
+    if (floor >= FLOOR_5_THRESHOLD) unlockAchievement("floor_5");
+    if (floor >= FLOOR_10_THRESHOLD) unlockAchievement("floor_10");
 }
 
 void AchievementSystem::trackRoomVisited() {
     roomsVisited++;
-    if (roomsVisited >= 100) {
+    if (roomsVisited >= EXPLORER_ROOMS_THRESHOLD) {
         unlockAchievement("explorer");
     }
 }
 
 void AchievementSystem::trackChestOpened() {
     chestsOpened++;
-    if (chestsOpened >= 25) {
+    if (chestsOpened >= TREASURE_HUNTER_THRESHOLD) {
         unlockAchievement("treasure_hunter");
     }
 }
 
 void AchievementSystem::trackKeyCollected() {
     keysCollected++;
-    if (keysCollected >= 10) {
+    if (keysCollected >= KEY_COLLECTOR_THRESHOLD) {
         unlockAchievement("key_collector");
     }
 }
@@ -198,7 +219,7 @@ void AchievementSystem::trackFloorCompletedNoKills() {
 }
 
 void AchievementSystem::trackFloorCompletedFast(float timeSeconds) {
-    if (timeSeconds < 120.0f) { // Under 2 minutes
+    if (timeSeconds < SPEEDRUNNER_TIME_SECONDS) {
         unlockAchievement("speedrunner");
     }
 }
@@ -209,28 +230,29 @@ void AchievementSystem::trackFloorCompletedFast(float timeSeconds) {
 
 void AchievementSystem::trackItemCollected(const std::string& itemId) {
     itemsCollected++;
+    (void)itemId;  // Suppress unused parameter warning
     
-    if (itemsCollected >= 50) unlockAchievement("collector");
-    if (itemsCollected >= 200) unlockAchievement("hoarder");
+    if (itemsCollected >= COLLECTOR_ITEMS_THRESHOLD) unlockAchievement("collector");
+    if (itemsCollected >= HOARDER_ITEMS_THRESHOLD) unlockAchievement("hoarder");
 }
 
 void AchievementSystem::trackGoldCollected(int amount) {
     totalGoldCollected += amount;
     
-    if (totalGoldCollected >= 1000) unlockAchievement("gold_digger");
-    if (totalGoldCollected >= 10000) unlockAchievement("millionaire");
+    if (totalGoldCollected >= GOLD_DIGGER_THRESHOLD) unlockAchievement("gold_digger");
+    if (totalGoldCollected >= MILLIONAIRE_THRESHOLD) unlockAchievement("millionaire");
 }
 
 void AchievementSystem::trackPotionUsed() {
     potionsUsed++;
-    if (potionsUsed >= 50) {
+    if (potionsUsed >= POTION_MASTER_THRESHOLD) {
         unlockAchievement("potion_master");
     }
 }
 
 void AchievementSystem::trackShopPurchase() {
     shopPurchases++;
-    if (shopPurchases >= 20) {
+    if (shopPurchases >= MERCHANT_PURCHASES_THRESHOLD) {
         unlockAchievement("merchant");
     }
 }
@@ -241,23 +263,23 @@ void AchievementSystem::trackShopPurchase() {
 
 void AchievementSystem::trackSkillUnlocked(const std::string& skillId) {
     skillsUnlocked++;
+    (void)skillId;  // Suppress unused parameter warning
     
-    if (skillsUnlocked >= 10) unlockAchievement("skill_master");
-    // Assuming max skills is around 20-30
-    if (skillsUnlocked >= 25) unlockAchievement("skill_god");
+    if (skillsUnlocked >= SKILL_MASTER_THRESHOLD) unlockAchievement("skill_master");
+    if (skillsUnlocked >= SKILL_GOD_THRESHOLD) unlockAchievement("skill_god");
 }
 
 void AchievementSystem::trackLevelUp(int newLevel) {
     currentLevel = newLevel;
     
-    if (newLevel >= 10) unlockAchievement("level_10");
-    if (newLevel >= 20) unlockAchievement("level_20");
-    if (newLevel >= 50) unlockAchievement("max_level");
+    if (newLevel >= LEVEL_10_THRESHOLD) unlockAchievement("level_10");
+    if (newLevel >= LEVEL_20_THRESHOLD) unlockAchievement("level_20");
+    if (newLevel >= MAX_LEVEL_THRESHOLD) unlockAchievement("max_level");
 }
 
 void AchievementSystem::trackGameSaved() {
     saveCount++;
-    if (saveCount >= 10) {
+    if (saveCount >= SAVIOR_SAVES_THRESHOLD) {
         unlockAchievement("savior");
     }
 }

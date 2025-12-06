@@ -1,7 +1,32 @@
-// SettingsManager.cpp - Implementation of SettingsManager
+// SettingsManager.cpp - Game settings persistence and management
 #include "SettingsManager.h"
 #include <fstream>
-#include <iostream>
+#include <algorithm>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+    // Volume defaults
+    constexpr float DEFAULT_MASTER_VOLUME = 1.0f;
+    constexpr float DEFAULT_SFX_VOLUME = 0.8f;
+    constexpr float DEFAULT_MUSIC_VOLUME = 0.6f;
+    
+    // Quality defaults
+    constexpr int DEFAULT_GRAPHICS_QUALITY = 1;  // 0=Low, 1=Medium, 2=High
+    constexpr int DEFAULT_DIFFICULTY = 1;        // 0=Easy, 1=Normal, 2=Hard
+    
+    // Bounds
+    constexpr float VOLUME_MIN = 0.0f;
+    constexpr float VOLUME_MAX = 1.0f;
+    constexpr int QUALITY_MIN = 0;
+    constexpr int QUALITY_MAX = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTRUCTOR
+// ═══════════════════════════════════════════════════════════════════════════
 
 SettingsManager::SettingsManager() {
     if (!loadSettings()) {
@@ -9,29 +34,37 @@ SettingsManager::SettingsManager() {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SETTERS WITH VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════
+
 void SettingsManager::setMasterVolume(float volume) {
-    masterVolume = std::max(0.0f, std::min(1.0f, volume));
+    masterVolume = std::clamp(volume, VOLUME_MIN, VOLUME_MAX);
 }
 
 void SettingsManager::setSFXVolume(float volume) {
-    sfxVolume = std::max(0.0f, std::min(1.0f, volume));
+    sfxVolume = std::clamp(volume, VOLUME_MIN, VOLUME_MAX);
 }
 
 void SettingsManager::setMusicVolume(float volume) {
-    musicVolume = std::max(0.0f, std::min(1.0f, volume));
+    musicVolume = std::clamp(volume, VOLUME_MIN, VOLUME_MAX);
 }
 
 void SettingsManager::setGraphicsQuality(int quality) {
-    graphicsQuality = std::max(0, std::min(2, quality));
+    graphicsQuality = std::clamp(quality, QUALITY_MIN, QUALITY_MAX);
 }
 
 void SettingsManager::setDifficulty(int diff) {
-    difficulty = std::max(0, std::min(2, diff));
+    difficulty = std::clamp(diff, QUALITY_MIN, QUALITY_MAX);
 }
 
 void SettingsManager::setFullscreen(bool enabled) {
     fullscreen = enabled;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool SettingsManager::loadSettings() {
     std::ifstream file(settingsFile);
@@ -51,19 +84,23 @@ bool SettingsManager::saveSettings() {
     std::ofstream file(settingsFile);
     if (!file.is_open()) return false;
 
-    nlohmann::json j = serialize();
+    const nlohmann::json j = serialize();
     file << j.dump(4);
     return true;
 }
 
 void SettingsManager::resetToDefaults() {
-    masterVolume = 1.0f;
-    sfxVolume = 0.8f;
-    musicVolume = 0.6f;
-    graphicsQuality = 1;
-    difficulty = 1;
+    masterVolume = DEFAULT_MASTER_VOLUME;
+    sfxVolume = DEFAULT_SFX_VOLUME;
+    musicVolume = DEFAULT_MUSIC_VOLUME;
+    graphicsQuality = DEFAULT_GRAPHICS_QUALITY;
+    difficulty = DEFAULT_DIFFICULTY;
     fullscreen = false;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SERIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
 
 nlohmann::json SettingsManager::serialize() const {
     nlohmann::json j;
@@ -84,3 +121,4 @@ void SettingsManager::deserialize(const nlohmann::json& j) {
     if (j.contains("difficulty")) difficulty = j["difficulty"];
     if (j.contains("fullscreen")) fullscreen = j["fullscreen"];
 }
+

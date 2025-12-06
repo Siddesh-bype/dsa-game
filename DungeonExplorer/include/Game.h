@@ -13,6 +13,8 @@ class SkillTree;
 class DungeonLevelManager;  // 10-floor system
 class Loot;  // NEW: Loot entity for items on ground
 class Shop;  // NEW: Shop system for buying items
+class SaveSystem;  // NEW: Save/Load system
+class SettingsManager;  // NEW: Game settings
 struct ItemNew;  // NEW: Item definition
 
 // ✨ Visual Effect for combat feedback
@@ -49,6 +51,7 @@ private:
     std::unique_ptr<SkillTree> skillTree;
     std::unique_ptr<DungeonLevelManager> levelManager;  // NEW: 10-floor manager
     std::unique_ptr<Shop> shop;  // NEW: Shop system
+    // Note: SaveSystem/SettingsManager are singletons - access via ::getInstance()
     
     bool isRunning;
     bool isPaused;

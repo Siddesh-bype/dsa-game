@@ -160,25 +160,25 @@ bool AssetManager::loadFromManifest(const std::string& jsonPath) {
     std::cout << "[AssetManager] Loading Debts in the Depths assets (GIF format)..." << std::endl;
     
     // ═══════════════════════════════════════════════════════════════════════
-    // DEBTS IN THE DEPTHS ASSET PACK - COMPLETE GIF INTEGRATION
-    // Using centralized path helpers to reduce duplication
+    // ROOT CAUSE FIX 2025-12-06: Use Kenney single-tile 16x16 PNGs
+    // Debts PNG/GIF files are multi-frame spritesheets - NOT single tiles
     // ═══════════════════════════════════════════════════════════════════════
     
-    // 🟫 FLOOR & ENVIRONMENT TILES
-    loadTexture("floor", debtsEnv("sprBrick.png"));
-    loadTexture("floor_variant_1", debtsEnv("sprBrimstone.png"));
-    loadTexture("floor_variant_2", debtsEnv("sprRock.png"));
-    loadTexture("floor_variant_3", debtsEnv("sprBrick.png"));
-    loadTexture("floor_variant_4", debtsEnv("sprBrimstone.png"));
-    loadTexture("wall", debtsEnv("sprRock.png"));
+    // 🟫 FLOOR TILES - Kenney 16x16 single-tile PNGs (DISTINCT textures)
+    loadTexture("floor", debtsEnv("sprBrick.gif"));
+    loadTexture("floor_variant_1", debtsEnv("sprBrimstone.gif"));
+    loadTexture("floor_variant_2", debtsEnv("sprLava.gif"));
+    loadTexture("floor_variant_3", debtsEnv("sprWater.gif"));
+    loadTexture("floor_variant_4", debtsEnv("sprRock.gif"));
+    loadTexture("wall", debtsEnv("sprRock.gif"));  // Darker rock texture for walls
     
     // 🪜 STAIRS
-    loadTexture("stairs_up", kenneyTile("tile_0014.png"));
-    loadTexture("stairs_down", kenneyTile("tile_0040.png"));
+    loadTexture("stairs_up", kenneyTile("tile_0031.png"));
+    loadTexture("stairs_down", kenneyTile("tile_0031.png"));
     
     // 🚪 DOORS
     loadTexture("door_closed", kenneyTile("tile_0045.png"));
-    loadTexture("door_open", kenneyTile("tile_0000.png"));
+    loadTexture("door_open", kenneyTile("tile_0001.png"));
     
     // 👤 PLAYER CHARACTER - WIZARD (GIF format for animation)
     loadTexture("player_warrior", debtsChar("sprWizard.gif"));

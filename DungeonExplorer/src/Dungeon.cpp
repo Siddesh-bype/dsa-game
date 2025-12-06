@@ -151,16 +151,29 @@ void Dungeon::connectRooms() {
 }
 
 void Dungeon::fillGrid() {
-    // Fill rooms into grid
+    // Fill rooms into grid - ALWAYS use Floor, stairs are single tiles
     for (const auto& room : rooms) {
         for (int y = room.y; y < room.y + room.height && y < GRID_HEIGHT; y++) {
             for (int x = room.x; x < room.x + room.width && x < GRID_WIDTH; x++) {
-                grid[y][x] = room.type;
+                grid[y][x] = TileType::Floor;  // All rooms are floor tiles
+            }
+        }
+        
+        // Place single stair tile at center of Start/Exit rooms
+        int centerX = room.x + room.width / 2;
+        int centerY = room.y + room.height / 2;
+        if (centerX < GRID_WIDTH && centerY < GRID_HEIGHT) {
+            if (room.type == TileType::Start) {
+                grid[centerY][centerX] = TileType::Start;
+            } else if (room.type == TileType::Exit) {
+                grid[centerY][centerX] = TileType::Exit;
+                stairsX = centerX;
+                stairsY = centerY;
             }
         }
     }
     
-    // CHANGE: 2025-11-11 - Clear doors before carving new ones
+    // Clear doors before carving corridors
     doors.clear();
     
     // Carve corridors between connected rooms
@@ -281,14 +294,19 @@ std::vector<std::pair<int, int>> Dungeon::getValidNeighbors(int x, int y) const 
 }
 
 std::string Dungeon::getFloorTextureKey(int x, int y, int currentFloor) const {
-    int variant = getDeterministicVariant(x, y, 5);
+    // CHANGE: 2025-12-06 - Simplified floor texture selection by floor level
+    // Floors 1-3: Brick (dungeon entrance)
+    // Floors 4-6: Brimstone (shadow temple/crystal mines)  
+    // Floors 7-10: Rock (fortress/lava/obsidian)
     
     if (currentFloor <= 3) {
-        return "floor";  // All brick for early floors
+        return "floor";  // sprBrick.gif
     } else if (currentFloor <= 6) {
-        return (variant < 2) ? "floor" : "floor_variant_2";  // Brick or Rock
+        return "floor_variant_1";  // sprBrimstone.gif
+    } else if (currentFloor <= 8) {
+        return "floor_variant_2";  // sprBrimstone.gif
     } else {
-        return (variant < 3) ? "floor_variant_1" : "floor_variant_2";  // Brimstone or Rock
+        return "floor_variant_3";  // sprRock.gif
     }
 }
 
@@ -539,134 +557,98 @@ void Dungeon::visualizeDijkstra(int startRoom) {
 }
 
 void Dungeon::render(sf::RenderWindow& window, float tileSize, int currentFloor) const {
-    // Debug: Verify grid size at render time
-    static bool debugPrinted = false;
-    if (!debugPrinted) {
-        std::cout << "[Dungeon] Rendering grid: " << GRID_WIDTH << "x" << GRID_HEIGHT 
-                  << " (pixels: " << (GRID_WIDTH * tileSize) << "x" << (GRID_HEIGHT * tileSize) << ")" << std::endl;
-        std::cout << "[Dungeon] Current floor: " << currentFloor << std::endl;
-        debugPrinted = true;
-    }
+    // CHANGE: 2025-12-06 - ROOT CAUSE FIX: Removed all spritesheet logic
+    // The game uses individual PNG/GIF files from "Debts in the Depths" asset pack
+    // Each texture file represents a complete tile - just scale to fit tileSize
     
     for (int y = 0; y < GRID_HEIGHT; y++) {
         for (int x = 0; x < GRID_WIDTH; x++) {
             sf::Texture* texture = nullptr;
             sf::Color fallbackColor;
             
-            // ═══════════════════════════════════════════════════════════════════════
-            // DEBTS IN THE DEPTHS TILE RENDERING - Individual PNG/GIF assets
-            // ═══════════════════════════════════════════════════════════════════════
-            
+            // Get texture key for this tile
             switch (grid[y][x]) {
                 case TileType::Empty:
-                    fallbackColor = sf::Color(15, 15, 20);  // Dark void
+                    fallbackColor = sf::Color(15, 15, 20);
                     break;
+                    
                 case TileType::Wall:
                     texture = AssetManager::getInstance().getTexture("wall");
-                    fallbackColor = sf::Color(60, 60, 70);  // Stone gray
+                    fallbackColor = sf::Color(60, 60, 70);
                     break;
+                    
                 case TileType::Floor: {
-                    // Use helper function for floor texture selection
                     std::string floorKey = getFloorTextureKey(x, y, currentFloor);
                     texture = AssetManager::getInstance().getTexture(floorKey);
-                    fallbackColor = sf::Color(80, 70, 60);  // Brown floor
+                    fallbackColor = sf::Color(80, 70, 60);
                     break;
                 }
+                
                 case TileType::Start:
                     texture = AssetManager::getInstance().getTexture("stairs_down");
-                    fallbackColor = sf::Color(50, 100, 200);  // Bright blue
+                    fallbackColor = sf::Color(50, 100, 200);
                     break;
+                    
                 case TileType::Exit:
                     texture = AssetManager::getInstance().getTexture("stairs_up");
-                    fallbackColor = sf::Color(255, 200, 50);  // Golden exit
+                    fallbackColor = sf::Color(255, 200, 50);
                     break;
-                case TileType::Door:
-                    texture = AssetManager::getInstance().getTexture("door_closed");
-                    fallbackColor = sf::Color(150, 120, 60);  // Gold trim
+                    
+                case TileType::Door: {
+                    bool isOpen = false;
+                    for (const auto& door : doors) {
+                        if (door.x == x && door.y == y && door.isOpen) {
+                            isOpen = true;
+                            break;
+                        }
+                    }
+                    texture = AssetManager::getInstance().getTexture(isOpen ? "door_open" : "door_closed");
+                    fallbackColor = isOpen ? sf::Color(80, 70, 60) : sf::Color(150, 120, 60);
                     break;
+                }
+                
                 case TileType::Treasure:
                     texture = AssetManager::getInstance().getTexture("chest");
-                    fallbackColor = sf::Color(255, 215, 0);  // Gold
+                    fallbackColor = sf::Color(255, 215, 0);
                     break;
-                case TileType::Enemy:
-                    // Enemy tiles use randomized floor
-                    int variant = (x * 7 + y * 13) % 5;
-                    std::string floorKey = (variant == 0) ? "floor" : 
-                                          ("floor_variant_" + std::to_string(variant));
+                    
+                case TileType::Enemy: {
+                    std::string floorKey = getFloorTextureKey(x, y, currentFloor);
                     texture = AssetManager::getInstance().getTexture(floorKey);
-                    fallbackColor = sf::Color(120, 40, 40);  // Dark red
+                    fallbackColor = sf::Color(120, 40, 40);
                     break;
+                }
             }
             
-            // Draw texture if available
-            bool drawn = false;
-
+            // Render the tile
             if (texture) {
                 sf::Sprite tileSprite(*texture);
-                
-                // Handle sprite sheets (if texture is larger than expected single tile)
-                // Determine base asset size: DebtsInTheDepths uses 20x20, Kenney uses 16x16
-                unsigned int baseAssetSize = 16;
-                if (texture->getSize().y % 20 == 0) {
-                    baseAssetSize = 20;
-                }
-                
-                if (texture->getSize().x > baseAssetSize || texture->getSize().y > baseAssetSize) {
-                    // It's likely a sprite sheet or large asset
-                    // Pick a random variant if it's a wall/floor sheet
-                    int sheetCols = texture->getSize().x / baseAssetSize;
-                    int sheetRows = texture->getSize().y / baseAssetSize;
-                    
-                    // Deterministic random based on position
-                    int variant = (x * 7 + y * 13) % (sheetCols * sheetRows);
-                    int tx = variant % sheetCols;
-                    int ty = variant / sheetCols;
-                    
-                    // SFML 3.0: IntRect takes ({pos}, {size})
-                    tileSprite.setTextureRect(sf::IntRect({static_cast<int>(tx * baseAssetSize), static_cast<int>(ty * baseAssetSize)}, 
-                                                          {static_cast<int>(baseAssetSize), static_cast<int>(baseAssetSize)}));
-                }
-                
                 tileSprite.setPosition(sf::Vector2f(x * tileSize, y * tileSize));
                 
-                // Scale to fit target tile size
-                float scaleX = tileSize / static_cast<float>(tileSprite.getTextureRect().size.x);
-                float scaleY = tileSize / static_cast<float>(tileSprite.getTextureRect().size.y);
+                // Simply scale entire texture to fit the tile size
+                float scaleX = tileSize / static_cast<float>(texture->getSize().x);
+                float scaleY = tileSize / static_cast<float>(texture->getSize().y);
                 tileSprite.setScale(sf::Vector2f(scaleX, scaleY));
                 
                 window.draw(tileSprite);
-                drawn = true;
                 
-                // ✨ Add sparkle effect on stairs for visual enhancement
+                // Add sparkle effect on stairs
                 if (grid[y][x] == TileType::Start || grid[y][x] == TileType::Exit) {
-                    sf::Texture* sparkleTexture = AssetManager::getInstance().getTexture("effect_sparkle");
-                    if (sparkleTexture) {
-                        sf::Sprite sparkle(*sparkleTexture);
-                        sparkle.setPosition(sf::Vector2f(x * tileSize, y * tileSize));
-                        
-                        float sparkleScale = tileSize / sparkleTexture->getSize().x;
-                        sparkle.setScale(sf::Vector2f(sparkleScale, sparkleScale));
-                        
-                        // Make sparkles semi-transparent for overlay effect
-                        sparkle.setColor(sf::Color(255, 255, 255, 180));
-                        
-                        window.draw(sparkle);
+                    sf::Texture* sparkle = AssetManager::getInstance().getTexture("effect_sparkle");
+                    if (sparkle) {
+                        sf::Sprite sparkleSprite(*sparkle);
+                        sparkleSprite.setPosition(sf::Vector2f(x * tileSize, y * tileSize));
+                        float sparkleScale = tileSize / static_cast<float>(sparkle->getSize().x);
+                        sparkleSprite.setScale(sf::Vector2f(sparkleScale, sparkleScale));
+                        sparkleSprite.setColor(sf::Color(255, 255, 255, 180));
+                        window.draw(sparkleSprite);
                     }
                 }
-            }
-
-            int tileIndexToUse = -1;
-
-            // ═══════════════════════════════════════════════════════════════════════
-            // TILE MAPPING - No longer using Kenney spritesheet, using individual assets
-            // ═══════════════════════════════════════════════════════════════════════
-
-            if (!drawn) {
+            } else {
                 // Fallback to colored rectangle
                 sf::RectangleShape tile(sf::Vector2f(tileSize, tileSize));
                 tile.setPosition(sf::Vector2f(x * tileSize, y * tileSize));
                 tile.setFillColor(fallbackColor);
-                
                 if (grid[y][x] != TileType::Empty) {
                     tile.setOutlineThickness(0.5f);
                     tile.setOutlineColor(sf::Color(30, 30, 35));
@@ -677,41 +659,49 @@ void Dungeon::render(sf::RenderWindow& window, float tileSize, int currentFloor)
     }
 }
 
-// CHANGE: 2025-11-11 - Door management implementation
+// ═══════════════════════════════════════════════════════════════════════
+// DOOR MANAGEMENT - Simplified and consistent door state handling  
+// CHANGE: 2025-12-06 - Refactored for cleaner logic
+// ═══════════════════════════════════════════════════════════════════════
+
 DoorData* Dungeon::getDoorAt(int x, int y) {
     for (auto& door : doors) {
-        if (door.x == x && door.y == y) {
-            return &door;
-        }
+        if (door.x == x && door.y == y) return &door;
+    }
+    return nullptr;
+}
+
+const DoorData* Dungeon::getDoorAt(int x, int y) const {
+    for (const auto& door : doors) {
+        if (door.x == x && door.y == y) return &door;
     }
     return nullptr;
 }
 
 void Dungeon::openDoor(int x, int y) {
-    DoorData* door = getDoorAt(x, y);
-    if (door && !door->isOpen) {
-        door->isOpen = true;
-        // grid[y][x] = TileType::Floor;  // REMOVED: Keep as Door type, isWalkable handles passability
-        std::cout << "[DEBUG] Door opened at (" << x << ", " << y << ")" << std::endl;
+    if (DoorData* door = getDoorAt(x, y)) {
+        if (!door->isOpen) {
+            door->isOpen = true;
+            // Note: Grid stays as TileType::Door - isWalkable() checks door.isOpen
+            std::cout << "[Door] Opened at (" << x << ", " << y << ")" << std::endl;
+        }
     }
 }
 
 void Dungeon::closeDoor(int x, int y) {
-    DoorData* door = getDoorAt(x, y);
-    if (door && door->isOpen) {
-        door->isOpen = false;
-        grid[y][x] = TileType::Door;  // Make impassable
-        std::cout << "[DEBUG] Door closed at (" << x << ", " << y << ")" << std::endl;
+    if (DoorData* door = getDoorAt(x, y)) {
+        if (door->isOpen) {
+            door->isOpen = false;
+            std::cout << "[Door] Closed at (" << x << ", " << y << ")" << std::endl;
+        }
     }
 }
 
 bool Dungeon::canPassDoor(int x, int y) const {
-    for (const auto& door : doors) {
-        if (door.x == x && door.y == y) {
-            return door.isOpen || !door.requiresKey;
-        }
+    if (const DoorData* door = getDoorAt(x, y)) {
+        return door->isOpen || !door->requiresKey;
     }
-    return true;  // No door here, can pass
+    return true;  // No door at this position
 }
 
 void Dungeon::checkRoomClear(int roomId, int enemyCount) {

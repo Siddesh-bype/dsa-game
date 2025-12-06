@@ -31,6 +31,7 @@ static constexpr int RARITY_LEGENDARY = 5;
 static constexpr int DEFAULT_RARITY = RARITY_COMMON;
 static constexpr int DEFAULT_VALUE = 0;
 static constexpr float DEFAULT_COOLDOWN = 0.0f;
+static constexpr int MAX_STACK_SIZE = 64;  // CHANGE: 2025-12-06 - Max items per stack
 
 // Rarity colors (RGB)
 namespace RarityColors {
@@ -51,15 +52,16 @@ struct ItemNew {
     ItemAction action;        // What the item does when used
     std::string iconPath;     // Path to icon texture
     float cooldown;           // Cooldown in seconds (for active items)
+    int stackCount = 1;       // CHANGE: 2025-12-06 - Number of items in stack (max 64)
     
-    ItemNew() : rarity(DEFAULT_RARITY), value(DEFAULT_VALUE), cooldown(DEFAULT_COOLDOWN) {}
+    ItemNew() : rarity(DEFAULT_RARITY), value(DEFAULT_VALUE), cooldown(DEFAULT_COOLDOWN), stackCount(1) {}
     
     ItemNew(const std::string& itemId, const std::string& itemName, 
             const std::string& itemType, int itemRarity, int itemValue,
             const ItemAction& itemAction = ItemAction(), 
-            const std::string& icon = "", float cd = 0.0f)
+            const std::string& icon = "", float cd = 0.0f, int stack = 1)
         : id(itemId), name(itemName), type(itemType), rarity(itemRarity), 
-          value(itemValue), action(itemAction), iconPath(icon), cooldown(cd) {}
+          value(itemValue), action(itemAction), iconPath(icon), cooldown(cd), stackCount(stack) {}
     
     // Comparison for priority queue (heap) - higher rarity = higher priority
     bool operator<(const ItemNew& other) const {
