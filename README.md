@@ -1,8 +1,8 @@
 # 🎮 Dungeon Explorer - DSA Game
 
-A roguelike dungeon crawler built with **C++ and SFML 3.0**, demonstrating **15 Data Structures and Algorithms** in a complete game implementation.
+A roguelike dungeon crawler built with **C++ and SFML 3.0**, demonstrating **15+ Data Structures and Algorithms** in a complete, polished game implementation.
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![C++](https://img.shields.io/badge/C++-17-blue) ![SFML](https://img.shields.io/badge/SFML-3.0-orange)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![C++](https://img.shields.io/badge/C++-17-blue) ![SFML](https://img.shields.io/badge/SFML-3.0-orange) ![License](https://img.shields.io/badge/license-Educational-purple)
 
 ---
 
@@ -80,10 +80,12 @@ graph TB
         LootSystem --> Heap
     end
     
-    subgraph Rendering["Rendering"]
+    subgraph Rendering["Rendering & Audio"]
         Renderer[Renderer.cpp]
         UIManager[UIManager.cpp]
         ParticleSystem[ParticleSystem.cpp]
+        SoundManager[SoundManager.cpp]
+        UIVisualEffects[UIVisualEffects.cpp]
     end
 ```
 
@@ -143,11 +145,29 @@ classDiagram
         +getSkillPath()
     }
     
+    class SoundManager {
+        -unordered_map buffers
+        -vector~Sound~ sounds
+        +playSound()
+        +generateSound()
+        +generateExplosion()
+    }
+    
+    class ItemWheel {
+        -vector~ItemNew~ items
+        -float openProgress
+        +open()
+        +close()
+        +handleClick()
+    }
+    
     Game --> Player
     Game --> Dungeon
     Game --> EnemyManager
     Game --> ItemManager
     Game --> SkillTree
+    Game --> SoundManager
+    Game --> ItemWheel
 ```
 
 ---
@@ -211,18 +231,23 @@ flowchart TD
 ## 🎮 Features
 
 ### Core Systems
-- ✅ **Procedural Generation**: 10 unique dungeon floors
-- ✅ **Turn-Based Combat**: Strategic enemy encounters
-- ✅ **Loot System**: 30+ items with rarity tiers
+- ✅ **Procedural Generation**: 10 unique dungeon floors with DungeonLevelManager
+- ✅ **Turn-Based Combat**: Strategic enemy encounters with skill hotkeys
+- ✅ **Loot System**: 30+ items with rarity tiers and drop tables
 - ✅ **Skill Tree**: 20+ skills with unlock dependencies
-- ✅ **Achievement System**: 50+ achievements
-- ✅ **Save/Load**: Persistent game state
+- ✅ **Achievement System**: 50+ achievements with rewards
+- ✅ **Save/Load**: Persistent game state with SaveSystem
+- ✅ **Settings Manager**: Volume, graphics quality, and difficulty settings
+- ✅ **Shop System**: Buy/sell items with gold economy
 
-### Visual Features
-- ✅ **Particle Effects**: Blood, sparks, magic effects
-- ✅ **Floating Text**: Damage numbers, notifications
-- ✅ **Mini-map**: Real-time dungeon overview
-- ✅ **DSA Visualization**: Graph paths, stack trails
+### Visual & Audio Features
+- ✅ **Particle Effects**: Blood, sparks, magic effects via ObjectPool
+- ✅ **Floating Text**: Damage numbers, notifications, status updates
+- ✅ **Mini-map**: Real-time dungeon overview with fog of war
+- ✅ **DSA Visualization**: Graph paths, stack trails, A* visualization
+- ✅ **Item Wheel**: Radial selection UI for quick item access (Tab key)
+- ✅ **UI Visual Effects**: Smooth transitions, glow effects, animations
+- ✅ **Procedural Audio**: SoundManager with generated sound effects
 
 ---
 
@@ -236,10 +261,14 @@ flowchart TD
 | **E** | Interact (pickup, doors, stairs) |
 | **I** | Toggle inventory |
 | **T** | Toggle skill tree |
+| **Tab** | Open item wheel (radial selection) |
 | **U** | Use selected item |
 | **X** | Drop selected item |
 | **1-5** | Activate skills |
+| **O** | Unlock next skill (debug) |
 | **M** | Toggle mini-map |
+| **F3** | Toggle debug overlay |
+| **F4** | Toggle DSA visualization |
 | **ESC** | Exit game |
 
 ---
@@ -291,17 +320,36 @@ DungeonExplorer/
 │   ├── Player.h                 # Player entity
 │   ├── Enemy.h                  # Enemy AI
 │   ├── Dungeon.h                # Level generation
+│   ├── DungeonLevelManager.h    # Floor progression
+│   ├── ItemWheel.h              # Radial item selection UI
+│   ├── SoundManager.h           # Procedural audio system
+│   ├── SettingsManager.h        # Persistent settings
+│   ├── SaveSystem.h             # Game state persistence
+│   ├── UIVisualEffects.h        # UI animations & effects
 │   ├── GameUtils.h              # Consolidated utilities
+│   └── ...                      # (27 header files total)
+├── src/                         # Implementation files (25 files)
+│   ├── Game.cpp                 # ~50KB main game logic
+│   ├── Player.cpp               # Player mechanics
+│   ├── Enemy.cpp                # Enemy AI & combat
+│   ├── Dungeon.cpp              # Procedural generation
+│   ├── SkillTree.cpp            # Skill unlock system
+│   ├── UIManager.cpp            # HUD & menus
+│   ├── AchievementSystem.cpp    # Achievement tracking
+│   ├── ItemWheel.cpp            # Radial menu logic
+│   ├── SoundManager.cpp         # Audio generation
 │   └── ...
-├── src/                         # Implementation files (23 files)
 ├── assets/
 │   ├── data/                    # JSON configurations
 │   │   ├── items.json           # 30+ item definitions
-│   │   └── enemies.json         # 8 enemy types
-│   └── kenney/                  # Tileset sprites
-├── doc/                         # Additional documentation
+│   │   ├── enemies.json         # 8 enemy types
+│   │   └── settings.json        # User preferences
+│   └── kenney/                  # Tileset sprites (100+ assets)
+├── doc/                         # Additional documentation (14 files)
+├── test/                        # Unit tests
 ├── build/                       # Build output
 ├── CMakeLists.txt               # Build configuration
+├── PROJECT_REPORT.md            # Detailed project report
 └── README.md                    # This file
 ```
 
@@ -318,17 +366,44 @@ DungeonExplorer/
 - **Spatial Hashing**: O(k) enemy queries vs O(n)
 - **Path Caching**: Reuses A* results for common paths
 - **Consolidated Utilities**: 22+ redundant includes removed
+- **Constexpr Constants**: Magic numbers replaced with compile-time constants
+
+### Audio System
+- **Procedural Generation**: SoundManager generates sound effects at runtime
+- **Wave Types**: Square, Triangle, Sine, White Noise
+- **Dynamic Effects**: Explosions, powerups, hits, jumps
+
+### Settings Persistence
+- **JSON-based**: Settings saved to `settings.json`
+- **Configurable**: Volume, graphics quality, difficulty, fullscreen
 
 ### Code Statistics
 | Metric | Count |
 |--------|-------|
-| Source Files | 23 |
-| Header Files | 25 |
+| Source Files | 25 |
+| Header Files | 27 |
 | DSA Implementations | 15 |
-| Lines of Code | ~15,000 |
+| Lines of Code | ~18,000 |
 | Items | 30+ |
 | Skills | 20+ |
 | Achievements | 50+ |
+| Enemy Types | 8 |
+| Dungeon Floors | 10 |
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run unit tests
+cd build
+ctest --output-on-failure
+```
+
+Tests cover:
+- Data structure operations (Stack, Queue, LinkedList, etc.)
+- Pathfinding algorithms (A*, Dijkstra)
+- Game state serialization
 
 ---
 
@@ -338,4 +413,4 @@ Educational project for Data Structures and Algorithms demonstration.
 
 ---
 
-**Version**: 2.0 | **Updated**: December 2025 | **Build**: ✅ Passing
+**Version**: 2.1 | **Updated**: December 2025 | **Build**: ✅ Passing

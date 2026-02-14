@@ -59,3 +59,6 @@ desktop.ini
 *.swp
 *.swo
 *.bak
+
+# Project Report
+PROJECT_REPORT.md
